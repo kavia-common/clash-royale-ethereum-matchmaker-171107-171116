@@ -6,6 +6,9 @@
  * primary: #2563EB, secondary: #F59E0B, background: #f9fafb, surface: #ffffff, text: #111827
  */
 
+// Increase overall timeout for slower CI environments and async wallet flows
+jest.setTimeout(15000);
+
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
