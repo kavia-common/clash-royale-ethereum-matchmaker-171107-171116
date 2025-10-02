@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import EscrowModal from './EscrowModal';
 
 /**
  * Ocean Professional theme tokens
@@ -25,6 +26,31 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
   const visible = useMemo(() => {
     return profiles.filter((p) => p.wagerEth >= filter.min && p.wagerEth <= filter.max);
   }, [profiles, filter]);
+
+  const [selected, setSelected] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const openModal = (p) => {
+    setSelected(p);
+    setModalOpen(true);
+  };
+  const closeModal = () => {
+    setModalOpen(false);
+    setSelected(null);
+  };
+
+  const handleInitiate = async ({ opponentId, wagerEth }) => {
+    // Placeholder to integrate with backend later: create match intent
+    // await fetch(`${process.env.REACT_APP_API_URL}/matches`, { method: 'POST', body: JSON.stringify({ opponentId, wagerEth }) });
+    await new Promise((r) => setTimeout(r, 350));
+  };
+
+  const handleDeposit = async ({ opponentId, wagerEth }) => {
+    // Placeholder to integrate with web3 later.
+    // Return a mocked tx hash shaped object.
+    await new Promise((r) => setTimeout(r, 1000));
+    return { txHash: '0x' + Math.random().toString(16).slice(2).padEnd(10, 'a') };
+  };
 
   if (profiles.length === 0) {
     return (
@@ -82,6 +108,7 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
                 type="button"
                 style={styles.primaryButton}
                 aria-label={`Challenge ${p.username}`}
+                onClick={() => openModal(p)}
               >
                 Challenge
               </button>
@@ -96,6 +123,17 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
           </article>
         ))}
       </div>
+
+      <EscrowModal
+        open={modalOpen}
+        onClose={closeModal}
+        challenger={null}
+        opponent={selected || undefined}
+        defaultWager={selected?.wagerEth}
+        onInitiate={handleInitiate}
+        onDeposit={handleDeposit}
+        onComplete={() => {}}
+      />
     </section>
   );
 }
