@@ -28,11 +28,10 @@ export default function WalletStatus() {
         ) : (
           <span style={styles.disconnectedBadge}>○ Disconnected</span>
         )}
-        {isConnected && (
-          <span style={styles.address(theme)} data-testid="wallet-address">
-            {address ? truncateAddress(address) : '0x…'}
-          </span>
-        )}
+        {/* Always render the wallet-address span for deterministic tests */}
+        <span style={styles.address(theme)} data-testid="wallet-address">
+          {isConnected && address ? truncateAddress(address) : ''}
+        </span>
       </div>
 
       {error && (
