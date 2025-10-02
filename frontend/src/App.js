@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import logo from './logo.svg';
 import './App.css';
 import LinkAccountModal from './components/LinkAccountModal';
+import WalletStatus from './components/WalletStatus';
 
 // PUBLIC_INTERFACE
 function App() {
@@ -79,7 +80,8 @@ function App() {
             <span style={{ fontWeight: 800, color: '#111827' }}>CR Matchmaker</span>
             <span style={{ color: '#6B7280', fontSize: 12 }}>Ocean Professional</span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <WalletStatus />
             <button
               onClick={() => setLinkOpen(true)}
               style={{
