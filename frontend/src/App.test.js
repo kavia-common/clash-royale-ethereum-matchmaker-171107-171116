@@ -15,7 +15,7 @@ describe('App component', () => {
 
     // Theme indicator text
     expect(screen.getByText(/Current theme:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Current theme:/i).nextSibling).toHaveTextContent('light');
+    expect(screen.getByTestId('theme-value')).toHaveTextContent('light');
 
     // Button aria-label reflects the target mode and text reflects the theme icon
     const toggleBtn = screen.getByRole('button', { name: /switch to dark mode/i });
@@ -36,7 +36,7 @@ describe('App component', () => {
     expect(screen.getByRole('button', { name: /switch to light mode/i })).toBeInTheDocument();
 
     // Text indicator updates
-    expect(screen.getByText(/Current theme:/i).nextSibling).toHaveTextContent('dark');
+    expect(screen.getByTestId('theme-value')).toHaveTextContent('dark');
   });
 
   test('applies CSS variable driven colors consistent with theme', () => {

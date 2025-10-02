@@ -31,7 +31,7 @@ function App() {
           Edit <code>src/App.js</code> and save to reload.
         </p>
         <p>
-          Current theme: <strong>{theme}</strong>
+          Current theme: <strong data-testid="theme-value">{theme}</strong>
         </p>
         <a
           className="App-link"
