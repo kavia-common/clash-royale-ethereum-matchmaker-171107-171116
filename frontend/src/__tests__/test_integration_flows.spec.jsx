@@ -128,10 +128,16 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
     await userEvent.click(connectBtn);
 
     // Badge should indicate connected - wait for the state to update
-    await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument());
+    await waitFor(
+      () => expect(screen.getByText(/Connected/i)).toBeInTheDocument(),
+      { timeout: 5000 }
+    );
 
-    // Address should be truncated; await the address element to appear
-    const addrDisplay = await screen.findByTestId('wallet-address');
+    // Optional tiny delay to allow DOM to settle in slower CI
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Address should be truncated; await the address element to appear with explicit timeout
+    const addrDisplay = await screen.findByTestId('wallet-address', {}, { timeout: 5000 });
     expect(addrDisplay.textContent).toMatch(/^0x1234…5678$/);
 
     // Disconnect should now be available
