@@ -9,6 +9,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
+import { ethers } from 'ethers';
 
 // Helper: Build a deterministic mock of fetch for /profiles and other endpoints.
 function mockFetchProfilesOnce({ profiles, status = 200 }) {
@@ -29,8 +30,11 @@ function mockFetchProfilesOnce({ profiles, status = 200 }) {
   });
 }
 
-// Helper: create a basic window.ethereum mock with eth_requestAccounts and eth_chainId
-function installEthereumMock({ accounts = ['0xA0b86991c6218b36c1d19D4a2E9Eb0cE3606eB48'], chainId = '0x1' } = {}) {
+/**
+ * Helper: create a basic window.ethereum mock with eth_requestAccounts and eth_chainId.
+ * Accepts addresses in any case but tests should pass in checksummed addresses.
+ */
+function installEthereumMock({ accounts = [ethers.utils.getAddress('0x1234567890abcdef1234567890abcdef12345678')], chainId = '0x1' } = {}) {
   const listeners = {};
   const ethMock = {
     request: jest.fn(async ({ method }) => {
@@ -107,9 +111,10 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
   test('connects to wallet and shows connected badge and truncated address', async () => {
     // Arrange: mock profiles fetch so the app renders without backend
     mockFetchProfilesOnce({ profiles: [] });
-    // Arrange: mock ethereum provider
+    // Arrange: mock ethereum provider with a valid checksummed address
+    const validAddress = ethers.utils.getAddress('0x1234567890abcdef1234567890abcdef12345678');
     installEthereumMock({
-      accounts: ['0x1234567890abcdef1234567890ABCDEF12345678'],
+      accounts: [validAddress],
       chainId: '0x5', // Goerli for example
     });
 
