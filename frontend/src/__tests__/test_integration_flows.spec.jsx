@@ -127,13 +127,11 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
     // Click connect; our mock will return the provided account
     await userEvent.click(connectBtn);
 
-    // Badge should indicate connected
-    await waitFor(() => {
-      expect(screen.getByText(/Connected/i)).toBeInTheDocument();
-    });
+    // Badge should indicate connected - wait for the state to update
+    await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument());
 
-    // Address should be truncated; our hook truncates to 0x1234…5678 pattern
-    const addrDisplay = screen.getByTestId('wallet-address');
+    // Address should be truncated; await the address element to appear
+    const addrDisplay = await screen.findByTestId('wallet-address');
     expect(addrDisplay.textContent).toMatch(/^0x1234…5678$/);
 
     // Disconnect should now be available
