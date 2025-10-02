@@ -30,7 +30,7 @@ export default function WalletStatus() {
         )}
         {isConnected && (
           <span style={styles.address(theme)} data-testid="wallet-address">
-            {truncateAddress(address)}
+            {address ? truncateAddress(address) : '0x…'}
           </span>
         )}
       </div>
