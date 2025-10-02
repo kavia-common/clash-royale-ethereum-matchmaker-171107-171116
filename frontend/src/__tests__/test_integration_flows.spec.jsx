@@ -136,12 +136,14 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
       { timeout: 5000 }
     );
 
-    // Optional tiny delay to allow DOM to settle in slower CI
-    await new Promise((r) => setTimeout(r, 200));
-
-    // Address should be truncated; await the address element to appear with explicit timeout
-    const addrDisplay = await screen.findByTestId('wallet-address', {}, { timeout: 5000 });
-    expect(addrDisplay.textContent).toMatch(/^0x1234…5678$/);
+    // Robustly wait for the truncated address to be rendered
+    await waitFor(
+      () =>
+        expect(screen.getByTestId('wallet-address')).toHaveTextContent(
+          /^0x1234…5678$/
+        ),
+      { timeout: 5000 }
+    );
 
     // Disconnect should now be available
     const disconnectBtn = screen.getByRole('button', { name: /disconnect ethereum wallet/i });
