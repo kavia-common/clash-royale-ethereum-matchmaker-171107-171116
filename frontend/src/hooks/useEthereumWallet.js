@@ -54,9 +54,17 @@ export function useEthereumWallet() {
       if (!eth) return;
       const accounts = await eth.request({ method: 'eth_accounts' });
       if (accounts && accounts.length > 0) {
+        // If accounts are present, update to the checksummed first account.
         setAddress(ethers.utils.getAddress(accounts[0]));
       } else {
-        setAddress('');
+        // Important behavior:
+        // Do NOT clear the address here. Some wallet providers momentarily return an empty array
+        // during initialization or page load, which could cause UI to flicker to "disconnected".
+        // We only clear the address on:
+        //  - explicit disconnect() calls, or
+        //  - accountsChanged events that indicate a true disconnect (empty list).
+        // This avoids race/timing issues in tests and in real usage.
+        // setAddress('');  // intentionally not clearing here
       }
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -125,6 +133,7 @@ export function useEthereumWallet() {
       if (accounts && accounts.length > 0) {
         setAddress(ethers.utils.getAddress(accounts[0]));
       } else {
+        // True disconnect detected via accountsChanged -> clear address.
         setAddress('');
       }
     };
