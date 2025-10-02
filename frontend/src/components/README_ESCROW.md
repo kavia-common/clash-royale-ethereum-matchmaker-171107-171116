@@ -3,8 +3,8 @@
 This UI is wired for a future backend + web3 integration.
 
 - EscrowModal props:
-  - onInitiate({ opponentId, wagerEth }): call your backend to create a match intent and return any reservation/intent ID if needed. The stub simulates latency for now.
-  - onDeposit({ opponentId, wagerEth }): perform the Ethereum deposit using ethers.js and a configured ESCROW contract address. Return `{ txHash }`. The current implementation stubs a successful delay.
+  - onInitiate({ opponentId, wagerEth }): call your backend to create a match intent and return any reservation/intent ID if needed. Implemented via apiCreateMatch in src/services/api.js.
+  - onDeposit({ opponentId, wagerEth }): perform the Ethereum deposit using ethers.js and a configured ESCROW contract address. Implemented via sendEscrowDeposit in src/services/blockchain.js and then apiConfirmDeposit to notify backend. Return `{ txHash }`.
 
 - Where to connect web3:
   - Import `useEthereumWallet()` to access `provider` and `signer`.

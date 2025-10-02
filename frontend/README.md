@@ -11,6 +11,17 @@ This project provides a minimal React template with a clean, modern UI and minim
 
 ## Getting Started
 
+Environment
+- Copy .env.example to .env and set:
+  - REACT_APP_API_URL: your backend base URL (e.g., http://localhost:8000)
+  - REACT_APP_ESCROW_ADDRESS: escrow contract address on the active chain
+
+Integration
+- API calls are centralized in src/services/api.js
+- Ethers escrow deposit helper is in src/services/blockchain.js
+- Profile list fetches data from backend; Escrow flow hits backend and contract
+
+
 In the project directory, you can run:
 
 ### `npm start`

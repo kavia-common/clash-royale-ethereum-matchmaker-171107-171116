@@ -1,5 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import EscrowModal from './EscrowModal';
+import { apiCreateMatch, apiGetProfiles, apiConfirmDeposit } from '../services/api';
+import { useEthereumWallet } from '../hooks/useEthereumWallet';
+import { sendEscrowDeposit } from '../services/blockchain';
 
 /**
  * Ocean Professional theme tokens
@@ -23,12 +26,50 @@ const theme = {
  */
 export default function ProfileList({ profiles = [], filter = { min: 0, max: Infinity } }) {
   /** This is a public function. */
+  const { signer, isConnected } = useEthereumWallet();
+
+  // Local list; if props provided we fallback to props; otherwise pull from API.
+  const [remoteProfiles, setRemoteProfiles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    // If parent passed profiles, don't load from API unless empty.
+    if (profiles && profiles.length > 0) {
+      setRemoteProfiles(profiles);
+      return;
+    }
+    let mounted = true;
+    const run = async () => {
+      setLoading(true);
+      setLoadError('');
+      try {
+        const res = await apiGetProfiles();
+        if (!mounted) return;
+        // Expecting an array of { id, username, rank, avatarUrl?, wagerEth }
+        setRemoteProfiles(Array.isArray(res) ? res : (res?.items || []));
+      } catch (e) {
+        setLoadError(e?.message || 'Failed to load profiles.');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles]);
+
+  const list = profiles && profiles.length > 0 ? profiles : remoteProfiles;
+
   const visible = useMemo(() => {
-    return profiles.filter((p) => p.wagerEth >= filter.min && p.wagerEth <= filter.max);
-  }, [profiles, filter]);
+    return list.filter((p) => p.wagerEth >= filter.min && p.wagerEth <= filter.max);
+  }, [list, filter]);
 
   const [selected, setSelected] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [matchId, setMatchId] = useState(null);
 
   const openModal = (p) => {
     setSelected(p);
@@ -37,22 +78,59 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
   const closeModal = () => {
     setModalOpen(false);
     setSelected(null);
+    setMatchId(null);
   };
 
   const handleInitiate = async ({ opponentId, wagerEth }) => {
-    // Placeholder to integrate with backend later: create match intent
-    // await fetch(`${process.env.REACT_APP_API_URL}/matches`, { method: 'POST', body: JSON.stringify({ opponentId, wagerEth }) });
-    await new Promise((r) => setTimeout(r, 350));
+    // Create match intent on backend.
+    // Backend should return an object like { matchId, ... }
+    const res = await apiCreateMatch({ opponentId, wagerEth });
+    // Accept several shapes, prefer res.matchId, else res.id
+    const mid = res?.matchId ?? res?.id ?? null;
+    setMatchId(mid);
+    return { matchId: mid, ...res };
   };
 
   const handleDeposit = async ({ opponentId, wagerEth }) => {
-    // Placeholder to integrate with web3 later.
-    // Return a mocked tx hash shaped object.
-    await new Promise((r) => setTimeout(r, 1000));
-    return { txHash: '0x' + Math.random().toString(16).slice(2).padEnd(10, 'a') };
+    // Ensure wallet
+    if (!isConnected || !signer) {
+      throw new Error('Wallet not connected. Please connect your wallet.');
+    }
+    // Send escrow deposit tx
+    const depositRes = await sendEscrowDeposit({
+      signer,
+      matchId: matchId ?? 0,
+      amountEth: wagerEth,
+    });
+    // Notify backend with tx hash if we have a match id
+    if (matchId && depositRes?.txHash) {
+      try {
+        await apiConfirmDeposit({ matchId, txHash: depositRes.txHash });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('Failed to confirm deposit with backend. You may need to refresh status manually.', e);
+      }
+    }
+    return { txHash: depositRes?.txHash };
   };
 
-  if (profiles.length === 0) {
+  if (loading) {
+    return (
+      <section style={styles.container}>
+        <EmptyState message="Loading profiles…" />
+      </section>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <section style={styles.container}>
+        <EmptyState message={loadError} />
+      </section>
+    );
+  }
+
+  if (list.length === 0) {
     return (
       <section style={styles.container}>
         <EmptyState message="No profiles available yet." />
@@ -99,7 +177,7 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
             <div style={styles.wagerRow}>
               <span style={styles.wagerLabel}>Desired Wager</span>
               <span style={styles.wagerValue}>
-                {p.wagerEth.toFixed(2)} ETH
+                {Number(p.wagerEth).toFixed(2)} ETH
               </span>
             </div>
 

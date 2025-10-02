@@ -4,21 +4,51 @@ import LinkAccountModal from './components/LinkAccountModal';
 import WalletStatus from './components/WalletStatus';
 import WagerFilter from './components/WagerFilter';
 import ProfileList from './components/ProfileList';
-import { generateMockProfiles } from './components/mockProfiles';
+import { apiGetProfiles, apiLinkAccount } from './services/api';
 
-// PUBLIC_INTERFACE
+/**
+ * PUBLIC_INTERFACE
+ * App
+ * Root component: manages theme, wallet status UI, profile fetch, and account linking.
+ * Uses:
+ * - REACT_APP_API_URL for backend
+ * - REACT_APP_ESCROW_ADDRESS for escrow contract used in downstream components
+ */
 function App() {
   const [theme, setTheme] = useState('light');
   const [linkOpen, setLinkOpen] = useState(false);
 
   // Profile data and filtering state
-  const [profiles] = useState(() => generateMockProfiles(24, { min: 0.02, max: 1.25 }));
+  const [profiles, setProfiles] = useState([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(false);
+  const [profilesError, setProfilesError] = useState('');
   const [filter, setFilter] = useState({ min: 0.01, max: 5.0 });
 
   // Effect to apply theme to document element
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      setLoadingProfiles(true);
+      setProfilesError('');
+      try {
+        const res = await apiGetProfiles();
+        if (!mounted) return;
+        setProfiles(Array.isArray(res) ? res : (res?.items || []));
+      } catch (e) {
+        setProfilesError(e?.message || 'Failed to load profiles.');
+      } finally {
+        if (mounted) setLoadingProfiles(false);
+      }
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // PUBLIC_INTERFACE
   const toggleTheme = () => {
@@ -27,13 +57,11 @@ function App() {
 
   // PUBLIC_INTERFACE
   const handleLinkSubmit = async ({ tag, token, mode }) => {
-    /** Placeholder for backend API; logs and resolves. */
-    // In future, use env var: process.env.REACT_APP_API_URL
-    // and POST to /api/link-account with { tag, token }
-    // e.g., await fetch(`${process.env.REACT_APP_API_URL}/link-account`, { ... })
-    // For now, just log for visibility.
-    // eslint-disable-next-line no-console
-    console.log('Stub submit ->', { tag, token, mode });
+    /**
+     * Submit account linking to backend.
+     * If wallet integration is required for linking, that can be added by providing walletAddress here.
+     */
+    await apiLinkAccount({ tag, token });
   };
 
   return (
@@ -144,7 +172,11 @@ function App() {
               Theme: <strong data-testid="theme-value">{theme}</strong>
             </div>
           </div>
-          <ProfileList profiles={profiles} filter={filter} />
+          {profilesError ? (
+            <div style={{ color: '#EF4444' }} role="alert">{profilesError}</div>
+          ) : (
+            <ProfileList profiles={profiles} filter={filter} />
+          )}
         </div>
       </main>
 

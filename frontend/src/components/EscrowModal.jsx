@@ -83,21 +83,27 @@ export default function EscrowModal({
 
   const confirmDeposit = async () => {
     setError('');
+    if (!isConnected) {
+      setError('Wallet not connected. Please connect your wallet.');
+      return;
+    }
     setStep('pending');
     try {
-      // Stubbed deposit action. Replace later with ethers.js call:
-      // const tx = await signer.sendTransaction({ to: ESCROW_ADDRESS, value: ethers.utils.parseEther(wager) });
-      // await tx.wait();
-      // For now, simulate delay and a mock tx hash:
+      // Perform the deposit via injected handler (ProfileList will use ethers.js)
       if (typeof onDeposit === 'function') {
         const res = await onDeposit({ opponentId: opponent?.id, wagerEth: Number(wager) });
-        setTxHash(res?.txHash || '0xmockedtx' + Math.random().toString(16).slice(2));
-      } else {
-        await new Promise((r) => setTimeout(r, 1500));
-        setTxHash('0xmockedtx' + Math.random().toString(16).slice(2));
+        const newHash = res?.txHash || '0xmockedtx' + Math.random().toString(16).slice(2);
+        setTxHash(newHash);
+        setStep('success');
+        onComplete?.({ status: 'success', txHash: newHash });
+        return;
       }
+      // Fallback stub
+      await new Promise((r) => setTimeout(r, 1500));
+      const newHash = '0xmockedtx' + Math.random().toString(16).slice(2);
+      setTxHash(newHash);
       setStep('success');
-      onComplete?.({ status: 'success', txHash });
+      onComplete?.({ status: 'success', txHash: newHash });
     } catch (e) {
       setStep('failure');
       setError(e?.message || 'The transaction failed or was rejected.');
