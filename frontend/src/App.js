@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import logo from './logo.svg';
 import './App.css';
 import LinkAccountModal from './components/LinkAccountModal';
 import WalletStatus from './components/WalletStatus';
+import WagerFilter from './components/WagerFilter';
+import ProfileList from './components/ProfileList';
+import { generateMockProfiles } from './components/mockProfiles';
 
 // PUBLIC_INTERFACE
 function App() {
   const [theme, setTheme] = useState('light');
   const [linkOpen, setLinkOpen] = useState(false);
+
+  // Profile data and filtering state
+  const [profiles] = useState(() => generateMockProfiles(24, { min: 0.02, max: 1.25 }));
+  const [filter, setFilter] = useState({ min: 0.01, max: 5.0 });
 
   // Effect to apply theme to document element
   useEffect(() => {
@@ -32,37 +38,25 @@ function App() {
 
   return (
     <div className="App" style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
-      <header
-        className="App-header"
+      {/* Top header/navigation */}
+      <div
         style={{
           width: '100%',
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--bg-secondary)',
-          position: 'relative',
+          position: 'sticky',
+          top: 0,
+          zIndex: 20,
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7))',
+          backdropFilter: 'saturate(180%) blur(8px)',
+          borderBottom: '1px solid #E5E7EB',
         }}
       >
-        <button 
-          className="theme-toggle" 
-          onClick={toggleTheme}
-          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-        >
-          {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
-        </button>
-
-        {/* Minimal header bar with action button following Ocean Professional theme */}
         <div
           style={{
-            position: 'absolute',
-            top: 20,
-            left: 20,
-            right: 140, // keep clear of theme toggle
+            maxWidth: 1180,
+            margin: '0 auto',
+            padding: '12px 16px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
             gap: 12,
           }}
         >
@@ -80,7 +74,8 @@ function App() {
             <span style={{ fontWeight: 800, color: '#111827' }}>CR Matchmaker</span>
             <span style={{ color: '#6B7280', fontSize: 12 }}>Ocean Professional</span>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
             <WalletStatus />
             <button
               onClick={() => setLinkOpen(true)}
@@ -96,27 +91,62 @@ function App() {
               }}
               aria-label="Link Clash Royale Account"
             >
-              Link Clash Royale Account
+              Link Account
+            </button>
+            <button
+              className="theme-toggle"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+            >
+              {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
             </button>
           </div>
         </div>
+      </div>
 
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <p>
-          Current theme: <strong data-testid="theme-value">{theme}</strong>
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
+      {/* Main content layout: side filter + central profile list */}
+      <main
+        style={{
+          width: '100%',
+          maxWidth: 1180,
+          margin: '20px auto',
+          padding: '0 16px 40px',
+          display: 'grid',
+          gridTemplateColumns: '300px 1fr',
+          gap: 16,
+          alignItems: 'start',
+        }}
+      >
+        <WagerFilter
+          min={0.01}
+          max={5.0}
+          value={filter}
+          onChange={(next) => setFilter(next)}
+        />
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
         >
-          Learn React
-        </a>
-      </header>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              justifyContent: 'space-between',
+            }}
+          >
+            <h2 style={{ margin: 0, fontWeight: 800, color: '#111827' }}>
+              Player Profiles
+            </h2>
+            <div style={{ color: '#6B7280', fontSize: 13 }}>
+              Theme: <strong data-testid="theme-value">{theme}</strong>
+            </div>
+          </div>
+          <ProfileList profiles={profiles} filter={filter} />
+        </div>
+      </main>
 
       <LinkAccountModal
         open={linkOpen}
