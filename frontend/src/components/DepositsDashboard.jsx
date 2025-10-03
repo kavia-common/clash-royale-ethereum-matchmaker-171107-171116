@@ -3,34 +3,36 @@ import { ethers } from 'ethers';
 import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
 
 /**
- * Ocean Professional theme tokens for deposits dashboard
+ * Ocean Professional theme tokens for the unified escrow/deposits panel
  */
 const theme = {
-  primary: '#2563EB',
+  primary: '#2563EB', // oceany blue
   secondary: '#F59E0B',
   success: '#10B981',
   error: '#EF4444',
   background: '#f9fafb',
   surface: '#ffffff',
   text: '#111827',
-  muted: '#6B7280',
-  border: '#E5E7EB',
+  muted: '#E0E7FF',
+  border: '#3B82F6',
 };
 
 /**
  * PUBLIC_INTERFACE
  * DepositsDashboard
- * A dashboard section that:
- * - Shows wallet connection and current ETH balance
- * - Provides an ETH deposit panel to initiate escrow/contract deposits
- * - Lists pending deposit/escrow requests (mocked until backend integration)
+ * A single, full-width blue panel that unifies:
+ * - Wallet status and ETH balance
+ * - Deposit to escrow action
+ * - Withdraw section (placeholder action until wired)
+ * - Pending requests summary
  *
  * Props:
  * - pendingRequests: optional array of pending request objects to display. If omitted, uses a mocked list.
  * - onDeposit: optional async function({ amountEth }) -> { txHash }, performs the actual deposit via ethers/contract.
  *   If not provided, a mocked deposit flow is used.
+ * - onWithdraw: optional async function() -> void, performs a withdraw flow if supported.
  */
-export default function DepositsDashboard({ pendingRequests, onDeposit }) {
+export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdraw }) {
   /** This is a public function. */
   const { isConnected, address, connect, signer } = useEthereumWallet();
 
@@ -43,6 +45,11 @@ export default function DepositsDashboard({ pendingRequests, onDeposit }) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [lastTx, setLastTx] = useState('');
+
+  // Withdraw
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState('');
+  const [withdrawOk, setWithdrawOk] = useState(false);
 
   // Pending list (mock if not provided)
   const mocked = useMemo(
@@ -90,7 +97,6 @@ export default function DepositsDashboard({ pendingRequests, onDeposit }) {
     setSending(true);
     setLastTx('');
     try {
-      // If provided, call prop-based onDeposit
       if (typeof onDeposit === 'function') {
         const res = await onDeposit({ amountEth: Number(amount) });
         setLastTx(res?.txHash || '');
@@ -107,123 +113,125 @@ export default function DepositsDashboard({ pendingRequests, onDeposit }) {
     }
   };
 
-  return (
-    <section aria-label="Deposits dashboard" style={styles.wrapper}>
-      <div style={styles.headerRow}>
-        <h2 style={styles.title}>Escrow & Deposits</h2>
-        <span style={styles.badge}>ETH</span>
-      </div>
+  const handleWithdraw = async () => {
+    setWithdrawError('');
+    setWithdrawOk(false);
+    setWithdrawing(true);
+    try {
+      if (typeof onWithdraw === 'function') {
+        await onWithdraw();
+        setWithdrawOk(true);
+      } else {
+        // Placeholder behavior until wired
+        await new Promise((r) => setTimeout(r, 900));
+        setWithdrawOk(true);
+      }
+    } catch (e) {
+      setWithdrawError(e?.message || 'Withdraw failed or was rejected.');
+    } finally {
+      setWithdrawing(false);
+    }
+  };
 
-      <div style={styles.grid}>
-        {/* Wallet status + balance card */}
-        <div style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h3 style={styles.cardTitle}>Wallet Status</h3>
+  return (
+    <section aria-label="Unified escrow and deposits panel" style={styles.wrapper}>
+      {/* Full-width blue rectangle */}
+      <div style={styles.oceanPanel}>
+        <div style={styles.centerWrap}>
+          <h1 style={styles.heroTitle}>deposit in crypto</h1>
+          <div style={styles.subRow}>
+            {/* Withdraw secondary action */}
+            <button
+              type="button"
+              onClick={handleWithdraw}
+              style={styles.withdrawButton}
+              disabled={withdrawing}
+              aria-disabled={withdrawing}
+            >
+              {withdrawing ? 'withdrawing…' : 'withdraw'}
+            </button>
           </div>
-          <div style={styles.walletRow}>
-            <span style={isConnected ? styles.connected : styles.disconnected}>
-              {isConnected ? '● Connected' : '○ Disconnected'}
+
+          {/* Wallet + Balance compact row inside the blue block */}
+          <div style={styles.walletCompact}>
+            <span style={isConnected ? styles.dotConnected : styles.dotDisconnected} aria-hidden="true">
+              {isConnected ? '●' : '○'}
             </span>
-            <span style={styles.addr}>
+            <span style={styles.walletAddr}>
               {isConnected && address ? truncateAddress(address) : 'No wallet connected'}
             </span>
+            <span style={styles.pipe} aria-hidden="true">|</span>
+            <span style={styles.balanceText}>
+              Balance: {balanceEth !== '' ? `${Number(balanceEth).toFixed(4)} ETH` : '—'}
+            </span>
+            {!isConnected && (
+              <button
+                type="button"
+                onClick={connect}
+                style={styles.connectButton}
+                aria-label="Connect Ethereum Wallet"
+              >
+                Connect Wallet
+              </button>
+            )}
           </div>
+          {balanceError && <div role="alert" style={styles.bannerError}>{balanceError}</div>}
+          {withdrawError && <div role="alert" style={styles.bannerError}>{withdrawError}</div>}
+          {withdrawOk && <div role="status" style={styles.bannerSuccess}>Withdraw initiated</div>}
 
-          <div style={styles.balanceRow}>
-            <div style={styles.balanceLabel}>Balance</div>
-            <div style={styles.balanceValue}>
-              {balanceEth !== '' ? `${Number(balanceEth).toFixed(4)} ETH` : '—'}
+          {/* Deposit action inside the blue panel */}
+          <div style={styles.depositBlock}>
+            <label htmlFor="deposit-amount" style={styles.inputLabel}>Amount (ETH)</label>
+            <div style={styles.inputRow}>
+              <input
+                id="deposit-amount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                style={styles.input}
+              />
+              <button
+                type="button"
+                onClick={handleDeposit}
+                disabled={!canDeposit || sending}
+                style={{ ...styles.primaryButton, ...(!canDeposit || sending ? styles.disabledBtn : {}) }}
+                aria-disabled={!canDeposit || sending}
+              >
+                {sending ? 'Processing…' : 'Deposit'}
+              </button>
             </div>
-          </div>
-          {balanceError && (
-            <div role="alert" style={styles.errorBanner}>{balanceError}</div>
-          )}
-
-          {!isConnected && (
-            <button
-              type="button"
-              onClick={connect}
-              style={styles.connectButton}
-              aria-label="Connect Ethereum Wallet"
-            >
-              Connect Wallet
-            </button>
-          )}
-        </div>
-
-        {/* Deposit panel - visually prominent */}
-        <div style={{ ...styles.card, ...styles.featuredCard }}>
-          <div style={styles.cardHeader}>
-            <h3 style={styles.cardTitle}>Deposit to Escrow</h3>
-            <span style={styles.infoText}>Secure funds before a match</span>
+            <div style={styles.hint}>Gas may vary by network congestion.</div>
+            {sendError && <div role="alert" style={styles.bannerError}>{sendError}</div>}
+            {lastTx && (
+              <div style={styles.bannerSuccess}>
+                <span aria-hidden="true">✅</span>&nbsp;Submitted. Tx:&nbsp;
+                <code style={styles.txHash}>{lastTx.slice(0, 22)}…</code>
+              </div>
+            )}
           </div>
 
-          <label htmlFor="deposit-amount" style={styles.inputLabel}>Amount (ETH)</label>
-          <input
-            id="deposit-amount"
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            style={styles.input}
-          />
-          <div style={styles.hint}>
-            Recommended gas may vary by network congestion.
+          {/* Pending summary within the blue block */}
+          <div style={styles.pendingWrap}>
+            <div style={styles.pendingHeader}>pending escrows</div>
+            {(!items || items.length === 0) ? (
+              <div style={styles.pendingEmpty}>
+                <span aria-hidden="true">🌊</span>&nbsp;No pending requests
+              </div>
+            ) : (
+              <ul style={styles.pendingList} aria-label="Pending deposit requests">
+                {items.map((r) => (
+                  <li key={r.id} style={styles.pendingItem}>
+                    <span style={styles.pendingText}>
+                      {r.opponent || 'Unknown'} · {Number(r.amountEth).toFixed(2)} ETH
+                    </span>
+                    <span style={styles.pendingStatus}>{labelForStatus(r.status)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-
-          {sendError && <div role="alert" style={styles.errorBanner}>{sendError}</div>}
-          {lastTx && (
-            <div style={styles.successBanner}>
-              <span aria-hidden="true">✅</span>&nbsp;Submitted. Tx:&nbsp;
-              <code style={styles.txHash}>{lastTx.slice(0, 20)}…</code>
-            </div>
-          )}
-
-          <div style={styles.actions}>
-            <button
-              type="button"
-              onClick={handleDeposit}
-              disabled={!canDeposit || sending}
-              style={{ ...styles.primaryButton, ...(!canDeposit || sending ? styles.disabledBtn : {}) }}
-              aria-disabled={!canDeposit || sending}
-            >
-              {sending ? 'Processing…' : 'Deposit'}
-            </button>
-          </div>
-        </div>
-
-        {/* Pending requests list */}
-        <div style={styles.card}>
-          <div style={styles.cardHeader}>
-            <h3 style={styles.cardTitle}>Pending Requests</h3>
-            <span style={styles.infoText}>Updates when counterparties act</span>
-          </div>
-          {(!items || items.length === 0) ? (
-            <div style={styles.empty}>
-              <div style={styles.emptyIcon} aria-hidden="true">🌊</div>
-              <div style={styles.emptyTitle}>No pending requests</div>
-              <div style={styles.emptySub}>You’ll see your in-progress escrows here.</div>
-            </div>
-          ) : (
-            <ul style={styles.list} aria-label="Pending deposit requests">
-              {items.map((r) => (
-                <li key={r.id} style={styles.listItem}>
-                  <div style={styles.listMain}>
-                    <div style={styles.listTitle}>
-                      Opponent: <strong>{r.opponent || 'Unknown'}</strong>
-                    </div>
-                    <div style={styles.listMeta}>
-                      {Number(r.amountEth).toFixed(2)} ETH
-                    </div>
-                  </div>
-                  <span style={statusPillStyle(r.status)} aria-label={`status: ${r.status}`}>
-                    {labelForStatus(r.status)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       </div>
     </section>
@@ -245,174 +253,126 @@ function labelForStatus(status) {
   }
 }
 
-function statusPillStyle(status) {
-  const base = {
-    padding: '4px 10px',
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 700,
-    border: `1px solid ${theme.border}`,
-    background: '#F3F4F6',
-    color: theme.text,
-    whiteSpace: 'nowrap',
-  };
-  if (status === 'awaiting-opponent') {
-    return { ...base, background: '#FFFBEB', borderColor: '#F59E0B66', color: '#92400E' };
-  }
-  if (status === 'pending') {
-    return { ...base, background: '#EFF6FF', borderColor: '#93C5FD', color: '#1E3A8A' };
-  }
-  if (status === 'ready') {
-    return { ...base, background: '#ECFDF5', borderColor: '#A7F3D0', color: '#065F46' };
-  }
-  if (status === 'completed') {
-    return { ...base, background: '#F3F4F6', color: '#111827' };
-  }
-  return base;
-}
-
 const styles = {
   wrapper: {
     width: '100%',
-    background: `linear-gradient(135deg, rgba(37,99,235,0.05), rgba(249,250,251,1))`,
-    border: `1px solid ${theme.border}`,
+  },
+  oceanPanel: {
+    width: '100%',
+    background: `linear-gradient(180deg, #2563EB, #1D4ED8)`,
+    color: '#EAF2FF',
     borderRadius: 16,
-    padding: 16,
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4)',
-  },
-  headerRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  title: {
-    margin: 0,
-    fontWeight: 800,
-    color: theme.text,
-    fontSize: 18,
-  },
-  badge: {
-    fontSize: 12,
-    fontWeight: 700,
-    color: theme.primary,
-    background: '#EEF2FF',
-    border: `1px solid ${theme.primary}33`,
-    padding: '2px 8px',
-    borderRadius: 999,
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 16,
-  },
-  card: {
-    background: theme.surface,
     border: `1px solid ${theme.border}`,
-    borderRadius: 12,
-    padding: 14,
+    boxShadow: '0 16px 28px rgba(29,78,216,0.25)',
+  },
+  centerWrap: {
+    maxWidth: 1180,
+    margin: '0 auto',
+    padding: '28px 16px',
     display: 'flex',
     flexDirection: 'column',
-    gap: 10,
-    boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
-    minHeight: 180,
+    alignItems: 'center',
+    gap: 12,
+    textAlign: 'center',
   },
-  featuredCard: {
-    background: 'linear-gradient(180deg, rgba(37,99,235,0.06), #ffffff)',
-    border: `1px solid ${theme.primary}33`,
-  },
-  cardHeader: {
-    display: 'flex',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  cardTitle: {
+  heroTitle: {
     margin: 0,
-    fontSize: 16,
+    fontSize: 28,
+    fontWeight: 900,
+    color: '#FFFFFF',
+    letterSpacing: 0.4,
+    textTransform: 'lowercase',
+  },
+  subRow: {
+    display: 'flex',
+    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  withdrawButton: {
+    background: '#E0E7FF',
+    color: '#1E3A8A',
+    border: '1px solid rgba(255,255,255,0.35)',
+    padding: '8px 12px',
+    borderRadius: 999,
+    cursor: 'pointer',
     fontWeight: 800,
-    color: theme.text,
+    boxShadow: '0 2px 8px rgba(17,24,39,0.25)',
+    textTransform: 'lowercase',
   },
-  infoText: {
-    fontSize: 12,
-    color: theme.muted,
-  },
-  walletRow: {
+  walletCompact: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-  },
-  connected: {
-    color: theme.primary,
-    fontWeight: 800,
-    fontSize: 12,
-  },
-  disconnected: {
-    color: theme.muted,
-    fontWeight: 700,
-    fontSize: 12,
-  },
-  addr: {
-    fontFamily:
-      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-    background: '#F3F4F6',
-    border: `1px solid ${theme.border}`,
-    padding: '4px 8px',
-    borderRadius: 8,
-    fontSize: 12,
-    color: theme.text,
-  },
-  balanceRow: {
-    marginTop: 6,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    background: '#F9FAFB',
-    border: `1px solid ${theme.border}`,
-    borderRadius: 10,
+    background: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.2)',
     padding: '8px 10px',
+    borderRadius: 12,
   },
-  balanceLabel: {
+  dotConnected: { color: '#86EFAC', fontWeight: 900 },
+  dotDisconnected: { color: '#FCA5A5', fontWeight: 900 },
+  walletAddr: {
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    background: 'rgba(255,255,255,0.12)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    padding: '2px 6px',
+    borderRadius: 8,
+    color: '#FFFFFF',
     fontSize: 12,
-    color: theme.muted,
-    fontWeight: 600,
   },
-  balanceValue: {
-    fontSize: 14,
-    fontWeight: 800,
-    color: theme.text,
-  },
+  pipe: { opacity: 0.6 },
+  balanceText: { fontWeight: 700, color: '#EAF2FF' },
   connectButton: {
-    alignSelf: 'flex-start',
+    marginLeft: 6,
     background: theme.secondary,
     color: '#111827',
     border: '1px solid transparent',
-    padding: '8px 12px',
+    padding: '6px 10px',
     borderRadius: 10,
     cursor: 'pointer',
     fontWeight: 800,
     boxShadow: '0 2px 8px rgba(245,158,11,0.35)',
   },
+  depositBlock: {
+    width: '100%',
+    maxWidth: 540,
+    background: 'rgba(255,255,255,0.10)',
+    border: '1px solid rgba(255,255,255,0.25)',
+    borderRadius: 14,
+    padding: 12,
+    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
+  },
   inputLabel: {
     display: 'block',
     fontSize: 12,
-    color: '#374151',
+    color: '#EAF2FF',
     fontWeight: 700,
+    textAlign: 'left',
+    marginBottom: 6,
+    textTransform: 'none',
+  },
+  inputRow: {
+    display: 'flex',
+    gap: 8,
   },
   input: {
-    width: '100%',
+    flex: 1,
     padding: '10px 12px',
     borderRadius: 10,
-    border: `1px solid ${theme.border}`,
+    border: '1px solid rgba(255,255,255,0.35)',
     outline: 'none',
     fontSize: 14,
-    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)',
+    color: '#0B1020',
+    background: '#FFFFFF',
   },
   hint: {
+    marginTop: 6,
     fontSize: 12,
-    color: theme.muted,
+    color: '#DBEAFE',
+    textAlign: 'left',
   },
-  errorBanner: {
+  bannerError: {
+    marginTop: 8,
     padding: '8px 10px',
     borderRadius: 10,
     background: '#FEF2F2',
@@ -420,8 +380,9 @@ const styles = {
     border: `1px solid ${theme.error}33`,
     fontSize: 14,
   },
-  successBanner: {
-    display: 'flex',
+  bannerSuccess: {
+    marginTop: 8,
+    display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
     padding: '8px 10px',
@@ -440,12 +401,6 @@ const styles = {
       'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     fontSize: 12,
   },
-  actions: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 6,
-  },
   primaryButton: {
     background: theme.primary,
     color: '#ffffff',
@@ -455,6 +410,7 @@ const styles = {
     cursor: 'pointer',
     fontWeight: 800,
     boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
+    textTransform: 'none',
   },
   disabledBtn: {
     filter: 'grayscale(0.3)',
@@ -462,42 +418,52 @@ const styles = {
     cursor: 'not-allowed',
     boxShadow: 'none',
   },
-  list: {
+  pendingWrap: {
+    width: '100%',
+    maxWidth: 720,
+    textAlign: 'left',
+    marginTop: 8,
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.2)',
+    borderRadius: 12,
+    padding: 10,
+  },
+  pendingHeader: {
+    color: '#EAF2FF',
+    fontWeight: 800,
+    fontSize: 12,
+    marginBottom: 6,
+    textTransform: 'lowercase',
+    letterSpacing: 0.4,
+  },
+  pendingEmpty: {
+    color: '#DBEAFE',
+    fontSize: 13,
+  },
+  pendingList: {
     listStyle: 'none',
     padding: 0,
     margin: 0,
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 6,
   },
-  listItem: {
+  pendingItem: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    border: `1px solid ${theme.border}`,
-    borderRadius: 10,
-    padding: '10px 12px',
-    background: '#FFFFFF',
+    padding: '8px 10px',
+    borderRadius: 8,
+    background: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.2)',
   },
-  listMain: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: 10,
-  },
-  listTitle: {
-    color: theme.text,
+  pendingText: {
+    color: '#F8FAFC',
     fontWeight: 700,
   },
-  listMeta: {
-    color: theme.muted,
+  pendingStatus: {
+    color: '#DBEAFE',
     fontSize: 12,
+    fontWeight: 700,
   },
-  empty: {
-    textAlign: 'center',
-    padding: '24px 8px',
-    color: theme.muted,
-  },
-  emptyIcon: { fontSize: 28, marginBottom: 6 },
-  emptyTitle: { fontWeight: 800, color: theme.text },
-  emptySub: { fontSize: 13, color: theme.muted },
 };
