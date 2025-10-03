@@ -91,7 +91,10 @@ export function useEthereumWallet() {
 
   // PUBLIC_INTERFACE
   const connect = useCallback(async () => {
-    /** Prompt user to connect wallet via MetaMask or compatible provider. */
+    /** Prompt user to connect wallet via MetaMask or compatible provider.
+     *  This implementation fetches accounts and chainId in parallel
+     *  and updates address+chainId together to avoid multiple renders/race conditions.
+     */
     setError('');
     setConnecting(true);
     try {
@@ -101,12 +104,16 @@ export function useEthereumWallet() {
         return;
       }
       ensureProvider();
-      const accounts = await eth.request({ method: 'eth_requestAccounts' });
+
+      // Fetch accounts and chainId concurrently, then set state in one tick
+      const [accounts, id] = await Promise.all([
+        eth.request({ method: 'eth_requestAccounts' }),
+        eth.request({ method: 'eth_chainId' }),
+      ]);
+
       if (accounts && accounts.length > 0) {
-        // Set address immediately to avoid any intermediate clearing.
         setAddress(ethers.utils.getAddress(accounts[0]));
       }
-      const id = await eth.request({ method: 'eth_chainId' });
       setChainId(id);
     } catch (e) {
       if (e?.code === 4001) {
@@ -154,11 +161,21 @@ export function useEthereumWallet() {
     if (!initRan.current) {
       initRan.current = true;
       ensureProvider();
-      // Schedule initial reads in microtasks to batch state updates
-      Promise.resolve()
-        .then(readAccounts)
-        .then(readChain)
-        .catch(() => {});
+      // Batch initial reads to avoid separate renders for address and chainId
+      Promise.resolve().then(async () => {
+        try {
+          const [accounts, id] = await Promise.all([
+            eth.request?.({ method: 'eth_accounts' }),
+            eth.request?.({ method: 'eth_chainId' }),
+          ]);
+          if (accounts && accounts.length > 0) {
+            setAddress(ethers.utils.getAddress(accounts[0]));
+          }
+          if (id) setChainId(id);
+        } catch {
+          // noop: keep silent to avoid noisy logs in tests
+        }
+      });
     }
 
     return () => {
