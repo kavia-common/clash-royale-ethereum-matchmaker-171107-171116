@@ -86,12 +86,78 @@ function App() {
 
   return (
     <div className="App" style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
-      {/* Top header/navigation */}
+      {/* Global top action buttons: Live (red) and Make a Wager (green) */}
       <div
         style={{
           width: '100%',
           position: 'sticky',
           top: 0,
+          zIndex: 50,
+          background: 'linear-gradient(180deg, rgba(249,250,251,0.95), rgba(255,255,255,0.85))',
+          borderBottom: '1px solid #E5E7EB',
+          boxShadow: '0 6px 16px rgba(0,0,0,0.06)',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: '0 auto',
+            padding: '10px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+          }}
+        >
+          <button
+            onClick={() => navigate('/game-history')}
+            aria-label="Go to live games"
+            style={{
+              backgroundColor: '#EF4444',
+              color: '#ffffff',
+              border: '1px solid #EF4444',
+              padding: '10px 16px',
+              borderRadius: 999,
+              cursor: 'pointer',
+              fontWeight: 800,
+              letterSpacing: 0.3,
+              boxShadow: '0 6px 14px rgba(239,68,68,0.35)',
+              transition: 'transform .15s ease, box-shadow .2s ease, opacity .2s ease',
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          >
+            Live
+          </button>
+          <button
+            onClick={() => navigate('/game-history')}
+            aria-label="Make a wager"
+            style={{
+              backgroundColor: '#10B981',
+              color: '#ffffff',
+              border: '1px solid #10B981',
+              padding: '10px 16px',
+              borderRadius: 999,
+              cursor: 'pointer',
+              fontWeight: 800,
+              letterSpacing: 0.3,
+              boxShadow: '0 6px 14px rgba(16,185,129,0.35)',
+              transition: 'transform .15s ease, box-shadow .2s ease, opacity .2s ease',
+            }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          >
+            Make a Wager
+          </button>
+        </div>
+      </div>
+
+      {/* Top header/navigation */}
+      <div
+        style={{
+          width: '100%',
+          position: 'sticky',
+          top: 56,
           zIndex: 20,
           background: 'linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7))',
           backdropFilter: 'saturate(180%) blur(8px)',
