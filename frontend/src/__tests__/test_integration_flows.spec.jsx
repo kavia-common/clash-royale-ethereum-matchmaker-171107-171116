@@ -134,6 +134,12 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
       await Promise.resolve();
     });
 
+    // Wait explicitly for provider requests to be triggered to avoid flakiness
+    await waitFor(() => {
+      const methodsCalled = eth.request.mock.calls.map(c => c?.[0]?.method);
+      expect(methodsCalled).toEqual(expect.arrayContaining(['eth_requestAccounts', 'eth_chainId']));
+    }, { timeout: 10000 });
+
     // Assert provider calls
     const methodsCalled = eth.request.mock.calls.map(c => c?.[0]?.method);
     expect(methodsCalled).toContain('eth_requestAccounts');
