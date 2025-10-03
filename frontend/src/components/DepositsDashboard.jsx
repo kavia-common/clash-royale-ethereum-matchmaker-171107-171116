@@ -133,6 +133,15 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
     }
   };
 
+  // Compute a mock USD balance display for the withdraw panel if backend not integrated.
+  const mockUsdBalance = useMemo(() => {
+    // If we have ETH balance, show a rough USD estimate. Otherwise, use a static mock.
+    const eth = Number(balanceEth || 0);
+    const usdPerEth = 3000; // mock conversion (do not rely on this for production)
+    const usd = eth > 0 ? eth * usdPerEth : 125.0; // default mock $125
+    return usd.toFixed(2);
+  }, [balanceEth]);
+
   return (
     <section aria-label="Unified escrow and deposits panel" style={styles.wrapper}>
       {/* Full-width blue rectangle */}
@@ -210,6 +219,44 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
                 <code style={styles.txHash}>{lastTx.slice(0, 22)}…</code>
               </div>
             )}
+          </div>
+
+          {/* Prominent green withdraw block under the blue deposit block */}
+          <div style={styles.withdrawPanel} aria-label="Withdraw panel">
+            <div style={styles.withdrawHeader}>
+              <h2 style={styles.withdrawTitle}>withdraw</h2>
+              <span style={styles.withdrawBadge}>escrow</span>
+            </div>
+            <div style={styles.withdrawGrid}>
+              <div style={styles.withdrawStat}>
+                <div style={styles.withdrawLabel}>Current Balance</div>
+                <div style={styles.withdrawValue}>
+                  {balanceEth !== '' ? `${Number(balanceEth).toFixed(4)} ETH` : '—'}
+                </div>
+                <div style={styles.withdrawSub}>≈ ${mockUsdBalance} USD</div>
+              </div>
+              <div style={styles.withdrawStat}>
+                <div style={styles.withdrawLabel}>Minimum Withdrawal</div>
+                <div style={styles.withdrawValue}>$10</div>
+                <div style={styles.withdrawSub}>Network fees apply</div>
+              </div>
+              <div style={styles.withdrawAction}>
+                <button
+                  type="button"
+                  onClick={handleWithdraw}
+                  disabled={withdrawing}
+                  aria-disabled={withdrawing}
+                  style={{
+                    ...styles.withdrawCta,
+                    ...(withdrawing ? styles.disabledBtn : {}),
+                  }}
+                >
+                  {withdrawing ? 'Processing…' : 'Initiate Withdraw'}
+                </button>
+                {withdrawError && <div role="alert" style={styles.bannerError}>{withdrawError}</div>}
+                {withdrawOk && <div role="status" style={styles.bannerSuccess}>Withdraw initiated</div>}
+              </div>
+            </div>
           </div>
 
           {/* Pending summary within the blue block */}
@@ -465,5 +512,88 @@ const styles = {
     color: '#DBEAFE',
     fontSize: 12,
     fontWeight: 700,
+  },
+
+  /* Withdraw panel styles */
+  withdrawPanel: {
+    width: '100%',
+    maxWidth: 720,
+    marginTop: 12,
+    background: '#ECFDF5',
+    border: '1px solid #A7F3D0',
+    borderRadius: 14,
+    padding: 12,
+    boxShadow: '0 8px 18px rgba(16,185,129,0.20)',
+  },
+  withdrawHeader: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  withdrawTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 900,
+    color: '#065F46',
+    textTransform: 'lowercase',
+    letterSpacing: 0.3,
+  },
+  withdrawBadge: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: '#065F46',
+    background: '#D1FAE5',
+    border: '1px solid #A7F3D0',
+    padding: '2px 8px',
+    borderRadius: 999,
+  },
+  withdrawGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 12,
+    alignItems: 'stretch',
+  },
+  withdrawStat: {
+    background: '#FFFFFF',
+    border: '1px solid #A7F3D0',
+    borderRadius: 12,
+    padding: 12,
+    textAlign: 'left',
+  },
+  withdrawLabel: {
+    fontSize: 12,
+    color: '#047857',
+    fontWeight: 800,
+  },
+  withdrawValue: {
+    fontSize: 18,
+    fontWeight: 900,
+    color: '#065F46',
+  },
+  withdrawSub: {
+    fontSize: 12,
+    color: '#047857',
+  },
+  withdrawAction: {
+    gridColumn: '1 / -1',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    alignItems: 'center',
+    background: '#D1FAE5',
+    border: '1px solid #A7F3D0',
+    borderRadius: 12,
+    padding: 12,
+  },
+  withdrawCta: {
+    background: '#10B981',
+    color: '#ffffff',
+    border: '1px solid #10B981',
+    padding: '10px 14px',
+    borderRadius: 10,
+    cursor: 'pointer',
+    fontWeight: 800,
+    boxShadow: '0 4px 12px rgba(16,185,129,0.35)',
   },
 };

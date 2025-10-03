@@ -136,26 +136,29 @@ function App() {
             gap: 12,
           }}
         >
-          <button
-            onClick={goToGameHistoryPrefetch}
-            aria-label="Go to live games"
+          {/* Non-interactive red circle: Game History indicator */}
+          <div
+            aria-label="Game History indicator"
+            title="Game History"
             style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
               backgroundColor: '#EF4444',
+              border: '2px solid #DC2626',
               color: '#ffffff',
-              border: '1px solid #EF4444',
-              padding: '10px 16px',
-              borderRadius: 999,
-              cursor: 'pointer',
-              fontWeight: 800,
-              letterSpacing: 0.3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 900,
               boxShadow: '0 6px 14px rgba(239,68,68,0.35)',
-              transition: 'transform .15s ease, box-shadow .2s ease, opacity .2s ease',
+              userSelect: 'none',
             }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}
-            onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
           >
-            Live
-          </button>
+            GH
+          </div>
+
+          {/* Interactive green rectangle: Make a Wager navigates to /game-history */}
           <button
             onClick={goToGameHistoryPrefetch}
             aria-label="Make a wager"
@@ -164,7 +167,7 @@ function App() {
               color: '#ffffff',
               border: '1px solid #10B981',
               padding: '10px 16px',
-              borderRadius: 999,
+              borderRadius: 12,
               cursor: 'pointer',
               fontWeight: 800,
               letterSpacing: 0.3,
