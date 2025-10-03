@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 
 /**
  * Ocean Professional theme tokens for this component.
@@ -29,12 +29,19 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     max: value?.max ?? max,
   });
 
+  // Track last emitted value to avoid duplicate emissions and assist blur logic
+  const lastEmittedRef = useRef({ min: value?.min ?? min, max: value?.max ?? max });
+
   useEffect(() => {
     // Keep local state in sync if parent updates
     setLocal({
       min: value?.min ?? min,
       max: value?.max ?? max,
     });
+    lastEmittedRef.current = {
+      min: value?.min ?? min,
+      max: value?.max ?? max,
+    };
   }, [value, min, max]);
 
   const presets = useMemo(
@@ -48,9 +55,9 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     [min, max]
   );
 
-  const safeNumber = (val) => {
+  const parseMaybeNumber = (val) => {
     const n = parseFloat(val);
-    return Number.isNaN(n) ? 0 : n;
+    return Number.isNaN(n) ? null : n;
   };
 
   const clamp = (val, lo, hi) => {
@@ -59,14 +66,35 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     return val;
   };
 
-  // Ensure emitted values are proper numbers with min<=max and within global bounds
-  const handleMinChange = (v) => {
-    let nextMin = safeNumber(v);
-    nextMin = clamp(nextMin, min, max);
+  // Helper to emit only when valid and changed
+  const maybeEmit = (next) => {
+    if (
+      typeof next.min === 'number' &&
+      typeof next.max === 'number' &&
+      !Number.isNaN(next.min) &&
+      !Number.isNaN(next.max)
+    ) {
+      const prev = lastEmittedRef.current;
+      if (prev.min !== next.min || prev.max !== next.max) {
+        onChange?.(next);
+        lastEmittedRef.current = next;
+      }
+    }
+  };
 
-    let nextMax = local.max;
-    if (Number.isNaN(parseFloat(nextMax))) nextMax = min;
-    nextMax = clamp(nextMax, min, max);
+  // Change handlers: during typing, only update local state. Emit only if parsed value is valid.
+  const handleMinChange = (raw) => {
+    const parsed = parseMaybeNumber(raw);
+    if (parsed === null) {
+      // Keep local string/partial by setting as-is, do not emit
+      setLocal((curr) => ({ ...curr, min: raw }));
+      return;
+    }
+    let nextMin = clamp(parsed, min, max);
+
+    // compute nextMax using current local (which may be string); parse if possible else keep as number min
+    const parsedMax = parseMaybeNumber(local.max);
+    let nextMax = parsedMax === null ? min : clamp(parsedMax, min, max);
 
     if (nextMin > nextMax) {
       nextMax = nextMin;
@@ -74,16 +102,20 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
 
     const next = { min: nextMin, max: nextMax };
     setLocal(next);
-    onChange?.(next);
+    // emit now that we have a valid numeric value
+    maybeEmit(next);
   };
 
-  const handleMaxChange = (v) => {
-    let nextMax = safeNumber(v);
-    nextMax = clamp(nextMax, min, max);
+  const handleMaxChange = (raw) => {
+    const parsed = parseMaybeNumber(raw);
+    if (parsed === null) {
+      setLocal((curr) => ({ ...curr, max: raw }));
+      return;
+    }
+    let nextMax = clamp(parsed, min, max);
 
-    let nextMin = local.min;
-    if (Number.isNaN(parseFloat(nextMin))) nextMin = min;
-    nextMin = clamp(nextMin, min, max);
+    const parsedMin = parseMaybeNumber(local.min);
+    let nextMin = parsedMin === null ? min : clamp(parsedMin, min, max);
 
     if (nextMax < nextMin) {
       nextMin = nextMax;
@@ -91,13 +123,42 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
 
     const next = { min: nextMin, max: nextMax };
     setLocal(next);
-    onChange?.(next);
+    maybeEmit(next);
+  };
+
+  // Blur handlers: if current field can be parsed into a valid number, normalize and emit if different
+  const handleMinBlur = () => {
+    const parsedMin = parseMaybeNumber(local.min);
+    const parsedMax = parseMaybeNumber(local.max);
+    if (parsedMin === null) return; // nothing to do
+    let nextMin = clamp(parsedMin, min, max);
+    let nextMax =
+      parsedMax === null ? clamp(value?.max ?? max, min, max) : clamp(parsedMax, min, max);
+    if (nextMin > nextMax) nextMax = nextMin;
+
+    const next = { min: nextMin, max: nextMax };
+    setLocal(next);
+    maybeEmit(next);
+  };
+
+  const handleMaxBlur = () => {
+    const parsedMin = parseMaybeNumber(local.min);
+    const parsedMax = parseMaybeNumber(local.max);
+    if (parsedMax === null) return;
+    let nextMax = clamp(parsedMax, min, max);
+    let nextMin =
+      parsedMin === null ? clamp(value?.min ?? min, min, max) : clamp(parsedMin, min, max);
+    if (nextMax < nextMin) nextMin = nextMax;
+
+    const next = { min: nextMin, max: nextMax };
+    setLocal(next);
+    maybeEmit(next);
   };
 
   const applyPreset = (p) => {
     const next = { min: p.min, max: p.max };
     setLocal(next);
-    onChange?.(next);
+    maybeEmit(next);
   };
 
   return (
@@ -119,6 +180,7 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
           step="0.01"
           value={local.min}
           onChange={(e) => handleMinChange(e.target.value)}
+          onBlur={handleMinBlur}
           style={styles.input}
           aria-describedby="min-help"
         />
@@ -134,6 +196,7 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
           step="0.01"
           value={local.max}
           onChange={(e) => handleMaxChange(e.target.value)}
+          onBlur={handleMaxBlur}
           style={styles.input}
           aria-describedby="max-help"
         />
@@ -147,7 +210,7 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
 
       <div style={styles.presets} role="group" aria-label="Wager presets">
         {presets.map((p) => {
-          const active = p.min === local.min && p.max === local.max;
+          const active = p.min === Number(local.min) && p.max === Number(local.max);
           return (
             <button
               key={p.label}
