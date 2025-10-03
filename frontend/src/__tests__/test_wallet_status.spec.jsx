@@ -57,9 +57,9 @@ describe('WalletStatus', () => {
     // Badge indicates connected
     await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument());
 
-    // Truncated address rendered into data-testid wallet-address
+    // Truncated address rendered into data-testid wallet-address (wait for it after Connected)
     const addr = await screen.findByTestId('wallet-address');
-    expect(addr.textContent).toMatch(/^0x1234…5678$/);
+    await waitFor(() => expect(addr.textContent).toMatch(/^0x1234…5678$/));
 
     // Disconnect path visible
     const disconnectBtn = screen.getByRole('button', { name: /disconnect ethereum wallet/i });

@@ -65,9 +65,11 @@ export function useEthereumWallet() {
       if (!eth) return;
       const accounts = await eth.request({ method: 'eth_accounts' });
       if (accounts && accounts.length > 0) {
+        // Ensure normalized and set immediately; do not clear if empty here (prevent flicker).
         setAddress(ethers.utils.getAddress(accounts[0]));
       } else {
-        // Intentionally avoid clearing address here to prevent flicker/flaky tests.
+        // Intentionally avoid clearing address here to prevent flicker/flaky tests and race with connect().
+        // Address will be cleared only on explicit disconnect() or 'accountsChanged' -> [] event.
       }
     } catch (e) {
       // eslint-disable-next-line no-console
