@@ -10,7 +10,7 @@ import TierSelectionModal from './components/TierSelectionModal';
 import ClashRoyaleDashboard from './components/ClashRoyaleDashboard';
 import GameHistoryDashboard from './components/GameHistoryDashboard';
 import GameHistoryPage from './pages/GameHistoryPage';
-import { apiGetProfiles, apiLinkAccount } from './services/api';
+import { apiGetProfiles, apiLinkAccount, apiGetLiveWagers, apiGetGameHistory } from './services/api';
 
 /**
  * PUBLIC_INTERFACE
@@ -30,8 +30,35 @@ function App() {
   const [crTag, setCrTag] = useState('');
   const [crToken, setCrToken] = useState('');
   const [crOpen, setCrOpen] = useState(false);
-  // Game history dashboard state
-  const [historyOpen, setHistoryOpen] = useState(false);
+  // Game history data prefetch state for immediate display on navigation
+  const [prefetching, setPrefetching] = useState(false);
+  const [prefetchedLive, setPrefetchedLive] = useState(null);
+  const [prefetchedHistory, setPrefetchedHistory] = useState(null);
+
+  // Helper to prefetch live wagers and game history before navigating to /game-history
+  // PUBLIC_INTERFACE
+  const goToGameHistoryPrefetch = async () => {
+    setPrefetching(true);
+    setPrefetchedLive(null);
+    setPrefetchedHistory(null);
+    try {
+      const [live, history] = await Promise.allSettled([
+        apiGetLiveWagers(),
+        apiGetGameHistory(),
+      ]);
+      if (live.status === 'fulfilled') {
+        setPrefetchedLive(live.value);
+      }
+      if (history.status === 'fulfilled') {
+        setPrefetchedHistory(history.value);
+      }
+    } catch {
+      // non-fatal; page will fetch on mount as well
+    } finally {
+      setPrefetching(false);
+      navigate('/game-history', { replace: false, state: { viaTopButtons: true } });
+    }
+  };
 
   // Profile data and filtering state
   const [profiles, setProfiles] = useState([]);
@@ -110,7 +137,7 @@ function App() {
           }}
         >
           <button
-            onClick={() => navigate('/game-history')}
+            onClick={goToGameHistoryPrefetch}
             aria-label="Go to live games"
             style={{
               backgroundColor: '#EF4444',
@@ -130,7 +157,7 @@ function App() {
             Live
           </button>
           <button
-            onClick={() => navigate('/game-history')}
+            onClick={goToGameHistoryPrefetch}
             aria-label="Make a wager"
             style={{
               backgroundColor: '#10B981',
@@ -295,7 +322,16 @@ function App() {
 
       {/* App-level routes */}
       <Routes>
-        <Route path="/game-history" element={<GameHistoryPage />} />
+        <Route
+          path="/game-history"
+          element={
+            <GameHistoryPage
+              prefetching={prefetching}
+              initialLive={prefetchedLive}
+              initialHistory={prefetchedHistory}
+            />
+          }
+        />
       </Routes>
     </div>
   );

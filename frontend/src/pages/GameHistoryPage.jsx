@@ -1,15 +1,64 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GameHistoryDashboard from '../components/GameHistoryDashboard';
+import { apiGetLiveWagers, apiGetGameHistory } from '../services/api';
 
 // PUBLIC_INTERFACE
-export default function GameHistoryPage() {
+export default function GameHistoryPage({ prefetching, initialLive, initialHistory }) {
   /**
    * GameHistoryPage: Full-page view for game history.
    * Top row: Live Stream (left) + Place Bet panel (right) with a close (×) top-right.
    * Below: Win/Loss/Profit stats and past games table (reusing GameHistoryDashboard inline).
    */
   const navigate = useNavigate();
+
+  // Local state seeded by prefetched values for instantaneous render
+  const [liveData, setLiveData] = useState(() => initialLive || null);
+  const [historyData, setHistoryData] = useState(() => initialHistory || null);
+  const [loading, setLoading] = useState(() => !!prefetching && !(initialLive && initialHistory));
+  const [error, setError] = useState('');
+
+  // If prefetched data arrives via props updates, sync into local state
+  useEffect(() => {
+    if (initialLive) setLiveData(initialLive);
+    if (initialHistory) setHistoryData(initialHistory);
+  }, [initialLive, initialHistory]);
+
+  // On mount, if we didn't get prefetched results, proactively fetch
+  useEffect(() => {
+    let canceled = false;
+    async function run() {
+      if (liveData && historyData) return;
+      setLoading(true);
+      setError('');
+      try {
+        const [live, hist] = await Promise.allSettled([
+          liveData ? Promise.resolve(liveData) : apiGetLiveWagers(),
+          historyData ? Promise.resolve(historyData) : apiGetGameHistory(),
+        ]);
+        if (canceled) return;
+        if (!liveData && live.status === 'fulfilled') setLiveData(live.value);
+        if (!historyData && hist.status === 'fulfilled') setHistoryData(hist.value);
+        if ((live.status === 'rejected') || (hist.status === 'rejected')) {
+          setError('Some data failed to load. Showing what is available.');
+        }
+      } catch (e) {
+        if (!canceled) setError(e?.message || 'Failed to load data.');
+      } finally {
+        if (!canceled) setLoading(false);
+      }
+    }
+    run();
+    return () => { canceled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Provide a fetcher that returns the latest historyData or fetches fresh
+  const historyFetcher = async () => {
+    if (historyData) return historyData;
+    const res = await apiGetGameHistory();
+    setHistoryData(res);
+    return res;
+  };
 
   return (
     <div style={styles.pageWrap}>
@@ -71,9 +120,24 @@ export default function GameHistoryPage() {
         </div>
       </section>
 
+      {loading && (
+        <div style={{ ...styles.section, paddingTop: 8 }}>
+          <div style={{ ...styles.card, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div aria-label="Loading" role="status" style={{
+              width: 16, height: 16, borderRadius: '50%',
+              border: '3px solid #BFDBFE', borderTopColor: '#2563EB',
+              animation: 'spin 1s linear infinite'
+            }} />
+            <span style={{ color: '#1E3A8A', fontWeight: 700, fontSize: 13 }}>
+              Loading latest game data…
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Inline the history dashboard content (stats + table) */}
       <div style={styles.section}>
-        <InlineGameHistory />
+        <InlineGameHistory fetcher={historyFetcher} />
       </div>
     </div>
   );
@@ -241,11 +305,11 @@ function PlaceBetPanel() {
   );
 }
 
-function InlineGameHistory() {
+function InlineGameHistory({ fetcher }) {
   // Render GameHistoryDashboard inline by neutralizing overlay
   return (
     <div style={inlineStyles.shell}>
-      <GameHistoryDashboard open onClose={() => { /* page context */ }} />
+      <GameHistoryDashboard open onClose={() => { /* page context */ }} fetcher={fetcher} />
       <style>
         {`
           [data-inline-history] {

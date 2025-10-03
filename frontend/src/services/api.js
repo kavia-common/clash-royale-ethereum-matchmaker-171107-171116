@@ -10,6 +10,31 @@
 const BASE_URL = process.env.REACT_APP_API_URL || '';
 
 /**
+ * PUBLIC_INTERFACE
+ * apiGetLiveWagers
+ * Fetch the current list of live games/wagers.
+ * Expected response:
+ *   { items: Array<{ id, user, opponent, wagerEth, status, timestamp }>, updatedAt?: string }
+ */
+export async function apiGetLiveWagers() {
+  return request(`/live`, { method: 'GET' });
+}
+
+/**
+ * PUBLIC_INTERFACE
+ * apiGetGameHistory
+ * Fetch user game history including stats, totals and games list.
+ * Expected response:
+ *   {
+ *     stats: { wins: number, losses: number, totalProfitEth?: number },
+ *     games: Array<{ id, date, opponent, wagerEth, result, profitEth }>
+ *   }
+ */
+export async function apiGetGameHistory() {
+  return request(`/games/history`, { method: 'GET' });
+}
+
+/**
  * Ensure we never send Supercell credentials from the browser.
  * All sensitive operations should be performed by the backend.
  */
