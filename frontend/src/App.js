@@ -142,57 +142,6 @@ function App() {
               View Tiers
             </button>
             <button
-              onClick={() => setLinkOpen(true)}
-              style={{
-                background: '#2563EB',
-                color: '#ffffff',
-                border: '1px solid transparent',
-                padding: '10px 14px',
-                borderRadius: 10,
-                cursor: 'pointer',
-                fontWeight: 700,
-                boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
-              }}
-              aria-label="Link Clash Royale Account"
-            >
-              Link Account
-            </button>
-            <button
-              onClick={() => setCrOpen(true)}
-              style={{
-                background: '#10B981',
-                color: '#ffffff',
-                border: '1px solid transparent',
-                padding: '10px 14px',
-                borderRadius: 10,
-                cursor: 'pointer',
-                fontWeight: 700,
-                boxShadow: '0 2px 8px rgba(16,185,129,0.35)',
-              }}
-              aria-label="View Clash Royale Stats"
-              disabled={!crTag}
-              title={!crTag ? 'Link your account to view stats' : 'Open stats'}
-            >
-              View CR Stats
-            </button>
-            <button
-              onClick={() => navigate('/game-history')}
-              style={{
-                background: '#111827',
-                color: '#ffffff',
-                border: '1px solid transparent',
-                padding: '10px 14px',
-                borderRadius: 10,
-                cursor: 'pointer',
-                fontWeight: 700,
-                boxShadow: '0 2px 8px rgba(17,24,39,0.25)',
-              }}
-              aria-label="View Game History"
-              title="Go to game history page"
-            >
-              Game History
-            </button>
-            <button
               className="theme-toggle"
               onClick={toggleTheme}
               aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}

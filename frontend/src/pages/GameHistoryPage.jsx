@@ -31,6 +31,38 @@ export default function GameHistoryPage() {
         </button>
       </header>
 
+      {/* Live Game placeholder above the live feed */}
+      <section style={styles.section}>
+        <div style={{ ...styles.card, ...styles.liveGamePlaceholder }}>
+          <div style={styles.cardHeader}>
+            <h2 style={styles.cardTitle}>Live Game</h2>
+            <span style={styles.badge}>Placeholder</span>
+          </div>
+          <div style={styles.liveGameBody}>
+            <div style={styles.liveGameScreen} aria-label="Live game video placeholder">
+              <div style={styles.liveGameLabel}>Stream window</div>
+            </div>
+            <div style={styles.liveGameMeta}>
+              <div style={styles.liveGameRow}>
+                <span style={styles.metaLabel}>Match</span>
+                <span style={styles.metaValue}>BlueWhale vs AquaKnight</span>
+              </div>
+              <div style={styles.liveGameRow}>
+                <span style={styles.metaLabel}>Series</span>
+                <span style={styles.metaValue}>Best of 3</span>
+              </div>
+              <div style={styles.liveGameRow}>
+                <span style={styles.metaLabel}>Wager</span>
+                <span style={styles.metaValueStrong}>0.50 ETH</span>
+              </div>
+              <div style={styles.liveGameNote}>
+                This is a visual placeholder. Replace with the actual live game stream when integrated.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Top row: Live Stream (left) + Place Bet (right) */}
       <section style={styles.section}>
         <div style={styles.topRow}>
@@ -320,6 +352,66 @@ const styles = {
   },
   placeCard: {
     minHeight: 260,
+  },
+  liveGamePlaceholder: {
+    marginBottom: 12,
+  },
+  liveGameBody: {
+    display: 'grid',
+    gridTemplateColumns: '1.6fr 1fr',
+    gap: 12,
+    alignItems: 'stretch',
+  },
+  liveGameScreen: {
+    minHeight: 220,
+    borderRadius: 12,
+    border: '1px solid #E5E7EB',
+    background: 'linear-gradient(135deg, #DBEAFE 0%, #E5E7EB 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)',
+  },
+  liveGameLabel: {
+    position: 'absolute',
+    bottom: 8,
+    right: 10,
+    fontSize: 12,
+    fontWeight: 800,
+    color: '#1E3A8A',
+    background: '#BFDBFE',
+    border: '1px solid #93C5FD',
+    borderRadius: 999,
+    padding: '4px 8px',
+  },
+  liveGameMeta: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    background: '#F9FAFB',
+    border: '1px solid #E5E7EB',
+    borderRadius: 12,
+    padding: 12,
+  },
+  liveGameRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
+    borderRadius: 10,
+    padding: '8px 10px',
+  },
+  metaLabel: { fontSize: 12, color: '#6B7280', fontWeight: 800 },
+  metaValue: { fontSize: 13, color: '#111827', fontWeight: 700 },
+  metaValueStrong: { fontSize: 13, color: '#111827', fontWeight: 900 },
+  liveGameNote: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#374151',
   },
   cardHeader: {
     display: 'flex',

@@ -40,30 +40,8 @@ export default function WalletStatus() {
         </div>
       )}
 
-      <div style={styles.actions}>
-        {!isConnected ? (
-          <button
-            onClick={connect}
-            disabled={connecting}
-            style={{
-              ...styles.primaryButton(theme),
-              ...(connecting ? styles.buttonDisabled : {}),
-            }}
-            aria-busy={connecting}
-            aria-label="Connect Ethereum Wallet"
-          >
-            {connecting ? 'Connecting…' : 'Connect Wallet'}
-          </button>
-        ) : (
-          <button
-            onClick={disconnect}
-            style={styles.secondaryButton}
-            aria-label="Disconnect Ethereum Wallet"
-          >
-            Disconnect
-          </button>
-        )}
-      </div>
+      {/* Hide direct wallet action buttons to keep connect logic behind the scenes */}
+      <div style={styles.actions} aria-hidden="true" hidden />
     </div>
   );
 }
