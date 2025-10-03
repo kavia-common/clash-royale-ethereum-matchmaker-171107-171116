@@ -60,7 +60,7 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
           </button>
         </div>
         <p id="tier-modal-desc" style={styles.subtitle}>
-          Pick the plan that suits your play style. You can upgrade anytime. All tiers follow secure escrow for fair play.
+          Pick the plan that suits your play style. Upgrade anytime. Benefits are highlighted below.
         </p>
 
         <div style={styles.grid}>
@@ -69,11 +69,16 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
             name="Free Tier"
             price="$0"
             period="/mo"
+            ribbon="Starter"
+            benefitBadges={[
+              { label: '20% Wager Tax', tone: 'warning' },
+              { label: '5% Deposit Bonus', tone: 'info' },
+              { label: 'Free $1/week', tone: 'success' },
+            ]}
             features={[
               'Browse player profiles',
               'Connect Ethereum wallet',
               'Initiate casual matches',
-              'Community support',
             ]}
             cta="Start Free"
             onClick={() => handle('free')}
@@ -85,6 +90,11 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
             price="$10"
             period="/mo"
             ribbon="Popular"
+            benefitBadges={[
+              { label: '2.5% Wager Tax', tone: 'success' },
+              { label: '15% Deposit Bonus', tone: 'info' },
+              { label: 'Free $5 / $100 deposit', tone: 'success' },
+            ]}
             features={[
               'Priority matchmaking',
               'Enhanced profile visibility',
@@ -101,6 +111,11 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
             price="$100"
             period="/mo"
             ribbon="Pro"
+            benefitBadges={[
+              { label: '30% Deposit Bonus', tone: 'info' },
+              { label: 'Free $30/month in wagers', tone: 'success' },
+              { label: '0% Wager Tax', tone: 'primary' },
+            ]}
             features={[
               'Premium matchmaking lanes',
               'Pro verification badge',
@@ -120,7 +135,47 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
   );
 }
 
-function TierCard({ name, price, period, features = [], cta, onClick, highlight = false, ribbon }) {
+function BenefitBadge({ label, tone = 'info' }) {
+  const palette = {
+    info: { bg: '#EEF2FF', border: `${theme.primary}33`, color: theme.primary },
+    success: { bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46' },
+    warning: { bg: '#FFFBEB', border: '#F59E0B66', color: '#92400E' },
+    primary: { bg: '#DBEAFE', border: '#93C5FD', color: '#1E3A8A' },
+  };
+  const p = palette[tone] || palette.info;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '4px 8px',
+        borderRadius: 999,
+        border: `1px solid ${p.border}`,
+        background: p.bg,
+        color: p.color,
+        fontSize: 12,
+        fontWeight: 800,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span aria-hidden="true">🏷️</span>
+      {label}
+    </span>
+  );
+}
+
+function TierCard({
+  name,
+  price,
+  period,
+  features = [],
+  cta,
+  onClick,
+  highlight = false,
+  ribbon,
+  benefitBadges = [],
+}) {
   return (
     <div style={{ ...styles.card, ...(highlight ? styles.cardHighlight : {}) }}>
       {ribbon ? (
@@ -128,6 +183,7 @@ function TierCard({ name, price, period, features = [], cta, onClick, highlight 
           {ribbon}
         </div>
       ) : null}
+
       <div style={styles.cardHeader}>
         <div style={styles.cardName}>{name}</div>
         <div style={styles.priceRow}>
@@ -135,6 +191,14 @@ function TierCard({ name, price, period, features = [], cta, onClick, highlight 
           <span style={styles.period}>{period}</span>
         </div>
       </div>
+
+      {benefitBadges.length > 0 && (
+        <div style={styles.benefitsRow} aria-label={`${name} benefits`}>
+          {benefitBadges.map((b, idx) => (
+            <BenefitBadge key={idx} label={b.label} tone={b.tone} />
+          ))}
+        </div>
+      )}
 
       <ul style={styles.features} aria-label={`${name} features`}>
         {features.map((f, i) => (
@@ -218,7 +282,7 @@ const styles = {
     flexDirection: 'column',
     gap: 12,
     boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
-    minHeight: 260,
+    minHeight: 280,
   },
   cardHighlight: {
     background: 'linear-gradient(180deg, rgba(37,99,235,0.06), #ffffff)',
@@ -261,6 +325,12 @@ const styles = {
     fontSize: 12,
     color: theme.muted,
     marginBottom: 2,
+  },
+  benefitsRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: -2,
   },
   features: {
     listStyle: 'none',
