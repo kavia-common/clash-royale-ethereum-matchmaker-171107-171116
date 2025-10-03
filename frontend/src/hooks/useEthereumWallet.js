@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ethers } from 'ethers';
 
 /**
@@ -25,6 +25,11 @@ export function useEthereumWallet() {
   /**
    * React hook managing Ethereum wallet connection using ethers.js.
    * Provides connect, disconnect, status, address, and signer/provider.
+   *
+   * Test stability and UX improvements:
+   * - Avoid clearing address on eth_accounts returning [] during init; only clear on explicit disconnect or accountsChanged -> [].
+   * - Ensure address is set immediately after connect resolves.
+   * - Initialize provider/signer once per mount and refresh on demand.
    */
   const [address, setAddress] = useState('');
   const [chainId, setChainId] = useState('');
@@ -32,20 +37,26 @@ export function useEthereumWallet() {
   const [error, setError] = useState('');
   const providerRef = useRef(null);
   const signerRef = useRef(null);
+  const initRan = useRef(false);
 
   const isConnected = !!address;
 
   const detectProvider = useCallback(() => {
+    // Guard for test environments where window might be undefined
+    if (typeof window === 'undefined') return null;
     const { ethereum } = window;
     return ethereum || null;
   }, []);
 
-  const refreshSigner = useCallback(async () => {
+  const ensureProvider = useCallback(() => {
     const eth = detectProvider();
-    if (!eth) return;
-    const web3Provider = new ethers.providers.Web3Provider(eth, 'any');
-    providerRef.current = web3Provider;
-    signerRef.current = web3Provider.getSigner();
+    if (!eth) return null;
+    if (!providerRef.current) {
+      const web3Provider = new ethers.providers.Web3Provider(eth, 'any');
+      providerRef.current = web3Provider;
+      signerRef.current = web3Provider.getSigner();
+    }
+    return providerRef.current;
   }, [detectProvider]);
 
   const readAccounts = useCallback(async () => {
@@ -54,17 +65,9 @@ export function useEthereumWallet() {
       if (!eth) return;
       const accounts = await eth.request({ method: 'eth_accounts' });
       if (accounts && accounts.length > 0) {
-        // If accounts are present, update to the checksummed first account.
         setAddress(ethers.utils.getAddress(accounts[0]));
       } else {
-        // Important behavior:
-        // Do NOT clear the address here. Some wallet providers momentarily return an empty array
-        // during initialization or page load, which could cause UI to flicker to "disconnected".
-        // We only clear the address on:
-        //  - explicit disconnect() calls, or
-        //  - accountsChanged events that indicate a true disconnect (empty list).
-        // This avoids race/timing issues in tests and in real usage.
-        // setAddress('');  // intentionally not clearing here
+        // Intentionally avoid clearing address here to prevent flicker/flaky tests.
       }
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -95,9 +98,10 @@ export function useEthereumWallet() {
         setError('No Ethereum wallet detected. Please install MetaMask.');
         return;
       }
-      await refreshSigner();
+      ensureProvider();
       const accounts = await eth.request({ method: 'eth_requestAccounts' });
       if (accounts && accounts.length > 0) {
+        // Set address immediately to avoid any intermediate clearing.
         setAddress(ethers.utils.getAddress(accounts[0]));
       }
       const id = await eth.request({ method: 'eth_chainId' });
@@ -112,7 +116,7 @@ export function useEthereumWallet() {
     } finally {
       setConnecting(false);
     }
-  }, [detectProvider, refreshSigner]);
+  }, [detectProvider, ensureProvider]);
 
   // PUBLIC_INTERFACE
   const disconnect = useCallback(() => {
@@ -124,7 +128,7 @@ export function useEthereumWallet() {
     signerRef.current = null;
   }, []);
 
-  // Listen to account and network changes
+  // Listen to account and network changes and run initial reads exactly once per mount
   useEffect(() => {
     const eth = detectProvider();
     if (!eth) return;
@@ -144,18 +148,22 @@ export function useEthereumWallet() {
     eth.on?.('accountsChanged', handleAccountsChanged);
     eth.on?.('chainChanged', handleChainChanged);
 
-    // Init read
-    (async () => {
-      await refreshSigner();
-      await readAccounts();
-      await readChain();
-    })();
+    // One-time initialization per mount to prevent multiple act() updates
+    if (!initRan.current) {
+      initRan.current = true;
+      ensureProvider();
+      // Schedule initial reads in microtasks to batch state updates
+      Promise.resolve()
+        .then(readAccounts)
+        .then(readChain)
+        .catch(() => {});
+    }
 
     return () => {
       eth.removeListener?.('accountsChanged', handleAccountsChanged);
       eth.removeListener?.('chainChanged', handleChainChanged);
     };
-  }, [detectProvider, readAccounts, readChain, refreshSigner]);
+  }, [detectProvider, readAccounts, readChain, ensureProvider]);
 
   const provider = providerRef.current || null;
   const signer = signerRef.current || null;

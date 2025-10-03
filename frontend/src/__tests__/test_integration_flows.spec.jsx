@@ -116,6 +116,7 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
     mockFetchProfilesOnce({ profiles: [] });
     // Arrange: mock ethereum provider with a valid checksummed address
     const validAddress = ethers.utils.getAddress('0x1234567890abcdef1234567890abcdef12345678');
+    // Install ethereum mock BEFORE rendering App to ensure effects see the provider
     installEthereumMock({
       accounts: [validAddress],
       chainId: '0x5', // Goerli for example
@@ -131,19 +132,10 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
     await userEvent.click(connectBtn);
 
     // Badge should indicate connected - wait for the state to update
-    await waitFor(
-      () => expect(screen.getByText(/Connected/i)).toBeInTheDocument(),
-      { timeout: 5000 }
-    );
+    await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument(), { timeout: 5000 });
 
     // Robustly wait for the truncated address to be rendered
-    await waitFor(
-      () =>
-        expect(screen.getByTestId('wallet-address')).toHaveTextContent(
-          /^0x1234…5678$/
-        ),
-      { timeout: 5000 }
-    );
+    await waitFor(() => expect(screen.getByTestId('wallet-address')).toHaveTextContent(/^0x1234…5678$/), { timeout: 5000 });
 
     // Disconnect should now be available
     const disconnectBtn = screen.getByRole('button', { name: /disconnect ethereum wallet/i });
@@ -152,7 +144,7 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
 
   test('handles user rejection gracefully by showing an error message', async () => {
     mockFetchProfilesOnce({ profiles: [] });
-    // Install ethereum that rejects eth_requestAccounts
+    // Install ethereum that rejects eth_requestAccounts BEFORE rendering
     const eth = installEthereumMock({ accounts: [] });
     eth.request.mockImplementation(async ({ method }) => {
       if (method === 'eth_requestAccounts') {

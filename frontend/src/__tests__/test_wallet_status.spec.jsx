@@ -41,6 +41,7 @@ afterEach(() => {
 
 describe('WalletStatus', () => {
   test('renders disconnected, connects, shows truncated address, and can disconnect', async () => {
+    // Ensure ethereum mock is installed BEFORE rendering to avoid act warnings during effect init
     installEthereumMock();
 
     render(<WalletStatus />);
@@ -69,6 +70,7 @@ describe('WalletStatus', () => {
   });
 
   test('handles user rejection with an error alert and remains disconnected', async () => {
+    // Install mock before render
     const eth = installEthereumMock({ accounts: [] });
     eth.request.mockImplementation(async ({ method }) => {
       if (method === 'eth_requestAccounts') {
