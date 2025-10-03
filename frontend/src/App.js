@@ -6,6 +6,7 @@ import WagerFilter from './components/WagerFilter';
 import ProfileList from './components/ProfileList';
 import DepositsDashboard from './components/DepositsDashboard';
 import TierSelectionModal from './components/TierSelectionModal';
+import ClashRoyaleDashboard from './components/ClashRoyaleDashboard';
 import { apiGetProfiles, apiLinkAccount } from './services/api';
 
 /**
@@ -20,6 +21,11 @@ function App() {
   const [theme, setTheme] = useState('light');
   const [linkOpen, setLinkOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
+
+  // Clash Royale linking state (frontend memory; real persistence should be backend/session)
+  const [crTag, setCrTag] = useState('');
+  const [crToken, setCrToken] = useState('');
+  const [crOpen, setCrOpen] = useState(false);
 
   // Profile data and filtering state
   const [profiles, setProfiles] = useState([]);
@@ -63,8 +69,13 @@ function App() {
     /**
      * Submit account linking to backend.
      * If wallet integration is required for linking, that can be added by providing walletAddress here.
+     * After successful linking, open the CR dashboard to show the user's stats (read-only).
      */
     await apiLinkAccount({ tag, token });
+    if (tag) setCrTag(tag);
+    if (token) setCrToken(token);
+    // Immediately show stats panel after link success
+    setCrOpen(true);
   };
 
   return (
@@ -139,6 +150,24 @@ function App() {
               aria-label="Link Clash Royale Account"
             >
               Link Account
+            </button>
+            <button
+              onClick={() => setCrOpen(true)}
+              style={{
+                background: '#10B981',
+                color: '#ffffff',
+                border: '1px solid transparent',
+                padding: '10px 14px',
+                borderRadius: 10,
+                cursor: 'pointer',
+                fontWeight: 700,
+                boxShadow: '0 2px 8px rgba(16,185,129,0.35)',
+              }}
+              aria-label="View Clash Royale Stats"
+              disabled={!crTag}
+              title={!crTag ? 'Link your account to view stats' : 'Open stats'}
+            >
+              View CR Stats
             </button>
             <button
               className="theme-toggle"
@@ -217,6 +246,13 @@ function App() {
           // eslint-disable-next-line no-console
           console.log('Tier selected:', tierId);
         }}
+      />
+
+      <ClashRoyaleDashboard
+        open={crOpen}
+        onClose={() => setCrOpen(false)}
+        playerTag={crTag}
+        accessToken={crToken}
       />
     </div>
   );

@@ -162,6 +162,7 @@ export default function LinkAccountModal({
         </div>
         <p id="link-modal-desc" style={styles.subtitle}>
           Provide your Clash Royale player tag or API token to link your account. You can switch modes below.
+          After linking, open "View CR Stats" from the header to see your read-only profile.
         </p>
 
         <div style={styles.segmentControl} role="tablist" aria-label="Input mode">

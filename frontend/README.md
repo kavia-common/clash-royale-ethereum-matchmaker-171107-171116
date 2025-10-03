@@ -20,6 +20,7 @@ Integration
 - API calls are centralized in src/services/api.js
 - Ethers escrow deposit helper is in src/services/blockchain.js
 - Profile list fetches data from backend; Escrow flow hits backend and contract
+- Clash Royale linking & stats (read-only): After linking via LinkAccountModal (tag or token), open the ClashRoyaleDashboard to view player profile and trophies. Stats are fetched by the backend from Supercell’s official API; no tokens are sent directly to Supercell from the browser.
 
 
 In the project directory, you can run:

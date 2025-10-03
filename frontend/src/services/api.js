@@ -9,6 +9,11 @@
 //
 const BASE_URL = process.env.REACT_APP_API_URL || '';
 
+/**
+ * Ensure we never send Supercell credentials from the browser.
+ * All sensitive operations should be performed by the backend.
+ */
+
 async function request(path, { method = 'GET', headers = {}, body, signal } = {}) {
   const url = `${BASE_URL}${path}`;
   const init = {
@@ -92,4 +97,35 @@ export async function apiConfirmDeposit({ matchId, txHash }) {
 export async function apiGetMatchStatus({ matchId }) {
   /** Poll match status (e.g., to check if both deposits are confirmed). */
   return request(`/matches/${encodeURIComponent(matchId)}`, { method: 'GET' });
+}
+
+/**
+ * Clash Royale integrations (read-only via backend proxy)
+ * Your backend should implement these endpoints using the official Supercell Clash Royale API:
+ * - GET /cr/player?tag=#TAG
+ * - GET /cr/player/favorites?tag=#TAG
+ * Both require the backend to authorize the Supercell API and handle rate limits per ToS.
+ */
+
+// PUBLIC_INTERFACE
+export async function apiGetCRPlayer({ tag, token } = {}) {
+  /** Fetch Clash Royale player profile by tag through backend proxy. */
+  const params = new URLSearchParams();
+  if (tag) params.set('tag', String(tag));
+  // Optional: if your backend uses a frontend-provided session token (not Supercell token) include it as header
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request(`/cr/player${qs}`, { method: 'GET', headers });
+}
+
+// PUBLIC_INTERFACE
+export async function apiGetCRFavoriteCards({ tag, token } = {}) {
+  /** Fetch a list of favorite cards/deck summary for the player via backend. */
+  const params = new URLSearchParams();
+  if (tag) params.set('tag', String(tag));
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request(`/cr/player/favorites${qs}`, { method: 'GET', headers });
 }
