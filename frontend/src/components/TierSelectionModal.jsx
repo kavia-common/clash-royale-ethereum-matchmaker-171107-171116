@@ -19,7 +19,7 @@ const theme = {
 export default function TierSelectionModal({ open, onClose, onSelect }) {
   /**
    * A dedicated modal/popup for selecting a plan tier.
-   * Sections: Free Tier, $10 Tier, $100 Tier. Each with features and a call-to-action button.
+   * Sections: Free Tier, $10 Tier, $100 Tier. Clean layout without checkmark lists.
    *
    * Props:
    * - open: boolean - whether the modal is open
@@ -60,7 +60,7 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
           </button>
         </div>
         <p id="tier-modal-desc" style={styles.subtitle}>
-          Pick the plan that suits your play style. Upgrade anytime. Benefits are highlighted below.
+          Pick the plan that suits your play style. Upgrade anytime. Benefits and pricing are shown below.
         </p>
 
         <div style={styles.grid}>
@@ -70,16 +70,14 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
             price="$0"
             period="/mo"
             ribbon="Starter"
+            // Keep tax/bonus/perk info via badges
             benefitBadges={[
               { label: '20% Wager Tax', tone: 'warning' },
               { label: '5% Deposit Bonus', tone: 'info' },
               { label: 'Free $1/week', tone: 'success' },
             ]}
-            features={[
-              'Browse player profiles',
-              'Connect Ethereum wallet',
-              'Initiate casual matches',
-            ]}
+            // Remove checkmark list; use clean description instead
+            description="Get started with browsing profiles, connecting your wallet, and initiating casual matches."
             cta="Start Free"
             onClick={() => handle('free')}
           />
@@ -90,17 +88,19 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
             price="$10"
             period="/mo"
             ribbon="Popular"
+            // Keep tax/bonus/perk info via badges
             benefitBadges={[
               { label: '2.5% Wager Tax', tone: 'success' },
               { label: '15% Deposit Bonus', tone: 'info' },
               { label: 'Free $5 / $100 deposit', tone: 'success' },
             ]}
-            features={[
-              'Priority matchmaking',
-              'Enhanced profile visibility',
-              'Deposit monitoring alerts',
-              'Standard support',
-            ]}
+            // Special discounted first purchase label
+            discount={{
+              label: '50% OFF — First Purchase Only',
+              salePrice: '$5',
+              regularPrice: '$10',
+            }}
+            description="Priority matchmaking and enhanced visibility. Includes deposit monitoring alerts and standard support."
             cta="Select $10 Tier"
             onClick={() => handle('10')}
           />
@@ -111,17 +111,13 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
             price="$100"
             period="/mo"
             ribbon="Pro"
+            // Keep tax/bonus/perk info via badges
             benefitBadges={[
               { label: '30% Deposit Bonus', tone: 'info' },
               { label: 'Free $30/month in wagers', tone: 'success' },
               { label: '0% Wager Tax', tone: 'primary' },
             ]}
-            features={[
-              'Premium matchmaking lanes',
-              'Pro verification badge',
-              'Dedicated support channel',
-              'Advanced analytics (beta)',
-            ]}
+            description="Premium lanes, pro verification, dedicated support, and advanced analytics (beta)."
             cta="Select $100 Tier"
             onClick={() => handle('100')}
           />
@@ -165,17 +161,38 @@ function BenefitBadge({ label, tone = 'info' }) {
   );
 }
 
+function DiscountBadge({ label, salePrice, regularPrice }) {
+  // Prominent discount badge/callout in Ocean Professional style
+  return (
+    <div style={styles.discountWrap} aria-label={`${label}: ${salePrice} (Regular ${regularPrice})`}>
+      <div style={styles.discountBadge}>
+        <span style={styles.discountLabel}>{label}</span>
+        <span style={styles.discountPrice}>
+          {salePrice}
+        </span>
+      </div>
+      <div style={styles.regularPriceRow}>
+        <span style={styles.regularPriceText}>Regular:</span>
+        <span style={styles.regularPriceStrike}>{regularPrice}</span>
+      </div>
+    </div>
+  );
+}
+
 function TierCard({
   name,
   price,
   period,
-  features = [],
   cta,
   onClick,
   highlight = false,
   ribbon,
   benefitBadges = [],
+  description,
+  discount, // { label, salePrice, regularPrice } for $10 tier
 }) {
+  const isTenTier = typeof name === 'string' && name.includes('$10');
+
   return (
     <div style={{ ...styles.card, ...(highlight ? styles.cardHighlight : {}) }}>
       {ribbon ? (
@@ -192,6 +209,15 @@ function TierCard({
         </div>
       </div>
 
+      {/* Discount callout for $10 tier only */}
+      {isTenTier && discount ? (
+        <DiscountBadge
+          label={discount.label}
+          salePrice={discount.salePrice}
+          regularPrice={discount.regularPrice}
+        />
+      ) : null}
+
       {benefitBadges.length > 0 && (
         <div style={styles.benefitsRow} aria-label={`${name} benefits`}>
           {benefitBadges.map((b, idx) => (
@@ -200,14 +226,12 @@ function TierCard({
         </div>
       )}
 
-      <ul style={styles.features} aria-label={`${name} features`}>
-        {features.map((f, i) => (
-          <li key={i} style={styles.featureItem}>
-            <span aria-hidden="true" style={styles.check}>✓</span>
-            <span>{f}</span>
-          </li>
-        ))}
-      </ul>
+      {/* Clean description block instead of checkmark feature list */}
+      {description ? (
+        <div style={styles.descBox}>
+          {description}
+        </div>
+      ) : null}
 
       <button
         type="button"
@@ -332,26 +356,15 @@ const styles = {
     gap: 8,
     marginTop: -2,
   },
-  features: {
-    listStyle: 'none',
-    padding: 0,
-    margin: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    flexGrow: 1,
-  },
-  featureItem: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: 8,
-    color: theme.text,
+  // Removed checkmark list; replace with a compact description box
+  descBox: {
+    background: '#F9FAFB',
+    border: '1px solid #E5E7EB',
+    borderRadius: 10,
+    padding: 10,
+    color: '#374151',
     fontSize: 14,
-  },
-  check: {
-    color: theme.primary,
-    fontWeight: 900,
-    marginTop: 1,
+    lineHeight: 1.4,
   },
   ctaButton: {
     alignSelf: 'stretch',
@@ -375,5 +388,57 @@ const styles = {
     fontSize: 12,
     color: theme.muted,
     textAlign: 'center',
+  },
+
+  // Discount styles
+  discountWrap: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    padding: 10,
+    border: `1px dashed ${theme.secondary}`,
+    borderRadius: 10,
+    background: 'linear-gradient(90deg, rgba(245,158,11,0.08), rgba(255,255,255,1))',
+  },
+  discountBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 10,
+    background: '#FFFBEB',
+    color: '#92400E',
+    border: '1px solid #F59E0B66',
+    borderRadius: 999,
+    padding: '6px 10px',
+    fontWeight: 800,
+    boxShadow: '0 2px 8px rgba(245,158,11,0.15)',
+  },
+  discountLabel: {
+    fontSize: 12,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  discountPrice: {
+    fontSize: 16,
+    fontWeight: 900,
+    color: '#111827',
+    background: '#FDE68A',
+    borderRadius: 8,
+    padding: '2px 8px',
+  },
+  regularPriceRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+  },
+  regularPriceText: {
+    fontSize: 12,
+    color: theme.muted,
+    fontWeight: 700,
+  },
+  regularPriceStrike: {
+    fontSize: 14,
+    color: '#6B7280',
+    textDecoration: 'line-through',
+    fontWeight: 800,
   },
 };
