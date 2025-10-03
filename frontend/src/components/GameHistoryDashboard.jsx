@@ -146,6 +146,7 @@ export default function GameHistoryDashboard({ open, onClose, fetcher }) {
       aria-labelledby="history-dashboard-title"
       aria-describedby="history-dashboard-desc"
       style={styles.overlay}
+      data-inline-history
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose?.();
       }}

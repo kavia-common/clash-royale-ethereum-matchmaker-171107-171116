@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import LinkAccountModal from './components/LinkAccountModal';
 import WalletStatus from './components/WalletStatus';
 import WagerFilter from './components/WagerFilter';
@@ -8,6 +9,7 @@ import DepositsDashboard from './components/DepositsDashboard';
 import TierSelectionModal from './components/TierSelectionModal';
 import ClashRoyaleDashboard from './components/ClashRoyaleDashboard';
 import GameHistoryDashboard from './components/GameHistoryDashboard';
+import GameHistoryPage from './pages/GameHistoryPage';
 import { apiGetProfiles, apiLinkAccount } from './services/api';
 
 /**
@@ -19,6 +21,7 @@ import { apiGetProfiles, apiLinkAccount } from './services/api';
  * - REACT_APP_ESCROW_ADDRESS for escrow contract used in downstream components
  */
 function App() {
+  const navigate = useNavigate();
   const [theme, setTheme] = useState('light');
   const [linkOpen, setLinkOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
@@ -173,7 +176,7 @@ function App() {
               View CR Stats
             </button>
             <button
-              onClick={() => setHistoryOpen(true)}
+              onClick={() => navigate('/game-history')}
               style={{
                 background: '#111827',
                 color: '#ffffff',
@@ -185,7 +188,7 @@ function App() {
                 boxShadow: '0 2px 8px rgba(17,24,39,0.25)',
               }}
               aria-label="View Game History"
-              title="Open your game history"
+              title="Go to game history page"
             >
               Game History
             </button>
@@ -275,16 +278,10 @@ function App() {
         accessToken={crToken}
       />
 
-      <GameHistoryDashboard
-        open={historyOpen}
-        onClose={() => setHistoryOpen(false)}
-        // Example of how to integrate with backend later:
-        // fetcher={async () => {
-        //   const res = await fetch(`${process.env.REACT_APP_API_URL}/games/history`, { headers: { Authorization: `Bearer ${YOUR_TOKEN}` }});
-        //   if (!res.ok) throw new Error('Failed to load history');
-        //   return await res.json();
-        // }}
-      />
+      {/* App-level routes */}
+      <Routes>
+        <Route path="/game-history" element={<GameHistoryPage />} />
+      </Routes>
     </div>
   );
 }
