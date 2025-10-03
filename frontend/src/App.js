@@ -4,6 +4,7 @@ import LinkAccountModal from './components/LinkAccountModal';
 import WalletStatus from './components/WalletStatus';
 import WagerFilter from './components/WagerFilter';
 import ProfileList from './components/ProfileList';
+import DepositsDashboard from './components/DepositsDashboard';
 import { apiGetProfiles, apiLinkAccount } from './services/api';
 
 /**
@@ -132,7 +133,7 @@ function App() {
         </div>
       </div>
 
-      {/* Main content layout: side filter + central profile list */}
+      {/* Main content layout: side filter + central content */}
       <main
         style={{
           width: '100%',
@@ -155,9 +156,12 @@ function App() {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 12,
+            gap: 16,
           }}
         >
+          {/* Prominent deposit & pending panel */}
+          <DepositsDashboard />
+
           <div
             style={{
               display: 'flex',
