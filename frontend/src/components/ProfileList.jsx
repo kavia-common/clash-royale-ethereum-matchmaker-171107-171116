@@ -167,7 +167,7 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
               </div>
               <div style={styles.meta}>
                 <div style={styles.usernameRow}>
-                  <span style={styles.username}>{p.username}</span>
+                  <span style={styles.username} data-testid="profile-username">{p.username}</span>
                   <span style={styles.rankBadge}>{p.rank}</span>
                 </div>
                 <div style={styles.subtleText}>Wants to wager</div>

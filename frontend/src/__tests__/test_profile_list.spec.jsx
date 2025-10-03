@@ -17,6 +17,15 @@ describe('ProfileList', () => {
     let cards = within(grid).getAllByRole('article');
     expect(cards.length).toBe(2); // p1 and p2
 
+    // Verify card contents using within(card) to avoid ambiguous global queries
+    expect(within(cards[0]).getByText(/AquaKnight/i)).toBeInTheDocument();
+    expect(within(cards[0]).getByText(/Gold/i)).toBeInTheDocument();
+    expect(within(cards[0]).getByText(/0\.25 ETH/i)).toBeInTheDocument();
+
+    expect(within(cards[1]).getByText(/StormRider/i)).toBeInTheDocument();
+    expect(within(cards[1]).getByText(/Diamond/i)).toBeInTheDocument();
+    expect(within(cards[1]).getByText(/0\.75 ETH/i)).toBeInTheDocument();
+
     // Adjust filter to hide p1 and p2, show only p3
     rerender(<ProfileList profiles={profiles} filter={{ min: 0.01, max: 0.06 }} />);
     const section = screen.getByLabelText('Profile list');
@@ -38,8 +47,8 @@ describe('ProfileList', () => {
     const dialog = await screen.findByRole('dialog', { name: /initiate match & deposit escrow/i });
     expect(dialog).toBeInTheDocument();
 
-    // Opponent shown
-    expect(screen.getByText(/opponent/i)).toBeInTheDocument();
-    expect(screen.getByText(/AquaKnight/i)).toBeInTheDocument();
+    // Opponent shown - scope username assertion within the modal to avoid ambiguities
+    expect(within(dialog).getByText(/opponent/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/AquaKnight/i)).toBeInTheDocument();
   });
 });
