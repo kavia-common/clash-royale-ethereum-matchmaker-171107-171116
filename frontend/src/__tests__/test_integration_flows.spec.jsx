@@ -134,9 +134,15 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
       await Promise.resolve();
     });
 
-    // Wait explicitly for provider requests to be triggered sequentially with robust 10s timeouts
-    await waitFor(() => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_requestAccounts'), { timeout: 10000 });
-    await waitFor(() => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_chainId'), { timeout: 10000 });
+    // Wait sequentially and robustly for provider requests
+    await waitFor(
+      () => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_requestAccounts'),
+      { timeout: 10000 }
+    );
+    await waitFor(
+      () => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_chainId'),
+      { timeout: 10000 }
+    );
 
     // Badge should indicate connected - wait for the state to update with increased timeout
     await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument(), { timeout: 10000 });
@@ -183,8 +189,14 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
     expect(alert).toHaveTextContent(/Connection request rejected/i);
 
     // Verify provider methods attempted sequentially with robust 10s timeouts
-    await waitFor(() => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_requestAccounts'), { timeout: 10000 });
-    await waitFor(() => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_chainId'), { timeout: 10000 });
+    await waitFor(
+      () => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_requestAccounts'),
+      { timeout: 10000 }
+    );
+    await waitFor(
+      () => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_chainId'),
+      { timeout: 10000 }
+    );
 
     // Remains disconnected state
     await waitFor(() => expect(screen.getByText(/Disconnected/i)).toBeInTheDocument(), { timeout: 10000 });
