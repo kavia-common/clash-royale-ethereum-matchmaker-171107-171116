@@ -115,76 +115,51 @@ function App() {
 
   return (
     <div className="App" style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
-      {/* Global top action buttons: Live (red) and Make a Wager (green) */}
+      {/* Prominent top-level Make Wager button (pill/oval) */}
       <div
         style={{
-          width: '100%',
           position: 'sticky',
           top: 0,
-          zIndex: 50,
-          background: 'linear-gradient(180deg, rgba(249,250,251,0.95), rgba(255,255,255,0.85))',
+          zIndex: 60,
+          background: 'linear-gradient(180deg, rgba(249,250,251,0.98), rgba(255,255,255,0.9))',
           borderBottom: '1px solid #E5E7EB',
-          boxShadow: '0 6px 16px rgba(0,0,0,0.06)',
+          boxShadow: '0 8px 22px rgba(0,0,0,0.08)',
         }}
       >
         <div
           style={{
             maxWidth: 1180,
             margin: '0 auto',
-            padding: '10px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
+            padding: '12px 16px',
           }}
         >
-          {/* Interactive red circle: opens Settings */}
           <button
             type="button"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Open Settings from Game History indicator"
-            title="Game History — Settings"
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: '50%',
-              backgroundColor: '#EF4444',
-              border: '2px solid #DC2626',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 900,
-              boxShadow: '0 6px 14px rgba(239,68,68,0.35)',
-              userSelect: 'none',
-              cursor: 'pointer',
-            }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}
-            onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-          >
-            GH
-          </button>
-
-          {/* Interactive green rectangle: navigate to Game History (Make a Wager action) */}
-          <button
             onClick={goToGameHistoryPrefetch}
-            aria-label="Go to Game History from Make a Wager"
+            aria-label="Make Wager and view game history"
             style={{
-              backgroundColor: '#10B981',
-              color: '#ffffff',
-              border: '1px solid #10B981',
-              padding: '10px 16px',
-              borderRadius: 12,
+              display: 'block',
+              width: '100%',
+              maxWidth: 900,
+              margin: '0 auto',
+              height: 64,
+              borderRadius: 9999,
+              background: '#10B981',
+              color: '#FFFFFF',
+              border: '2px solid #059669',
+              fontSize: 22,
+              fontWeight: 900,
+              letterSpacing: 0.4,
               cursor: 'pointer',
-              fontWeight: 800,
-              letterSpacing: 0.3,
-              boxShadow: '0 6px 14px rgba(16,185,129,0.35)',
-              transition: 'transform .15s ease, box-shadow .2s ease, opacity .2s ease',
+              boxShadow: '0 14px 32px rgba(16,185,129,0.35)',
+              transition: 'transform .12s ease, box-shadow .2s ease, opacity .2s ease',
             }}
             onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}
             onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+            onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 18px 40px rgba(16,185,129,0.45)')}
+            onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 14px 32px rgba(16,185,129,0.35)')}
           >
-            Make a Wager
+            Make Wager
           </button>
         </div>
       </div>
@@ -194,7 +169,7 @@ function App() {
         style={{
           width: '100%',
           position: 'sticky',
-          top: 56,
+          top: 80,
           zIndex: 20,
           background: 'linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7))',
           backdropFilter: 'saturate(180%) blur(8px)',
@@ -260,8 +235,8 @@ function App() {
         style={{
           width: '100%',
           maxWidth: 1180,
-          margin: '20px auto',
-          padding: '0 16px 40px',
+          margin: '24px auto',
+          padding: '0 16px 44px',
           display: 'grid',
           gridTemplateColumns: '300px 1fr',
           gap: 16,
