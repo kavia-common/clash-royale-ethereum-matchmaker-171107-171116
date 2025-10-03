@@ -165,10 +165,10 @@ function App() {
             GH
           </button>
 
-          {/* Interactive green rectangle: open Settings (formerly navigated to /game-history) */}
+          {/* Interactive green rectangle: navigate to Game History (Make a Wager action) */}
           <button
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Open Settings from Make a Wager"
+            onClick={goToGameHistoryPrefetch}
+            aria-label="Go to Game History from Make a Wager"
             style={{
               backgroundColor: '#10B981',
               color: '#ffffff',
