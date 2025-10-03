@@ -55,6 +55,8 @@ export default function TierSelectionModal({ open, onClose, onSelect }) {
             aria-label="Close modal"
             onClick={onClose}
             style={styles.iconButton}
+            onMouseEnter={(e) => (e.currentTarget.style.color = theme.text)}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#6B7280')}
           >
             ×
           </button>
@@ -264,13 +266,16 @@ const styles = {
     borderRadius: 14,
     boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
     padding: 20,
+    paddingTop: 20,
     border: '1px solid #E5E7EB',
   },
   header: {
+    position: 'relative',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 6,
+    paddingRight: 40,
   },
   title: {
     margin: 0,
@@ -284,12 +289,23 @@ const styles = {
     fontSize: 14,
   },
   iconButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
     border: 'none',
-    background: 'transparent',
-    fontSize: 24,
+    background: '#FFFFFF',
+    width: 32,
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 20,
     lineHeight: 1,
     cursor: 'pointer',
     color: '#6B7280',
+    borderRadius: 8,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+    borderBottom: '2px solid #E5E7EB',
   },
   grid: {
     display: 'grid',
