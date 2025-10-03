@@ -30,6 +30,7 @@ export function useEthereumWallet() {
    * - Avoid clearing address on eth_accounts returning [] during init; only clear on explicit disconnect or accountsChanged -> [].
    * - Ensure address is set immediately after connect resolves.
    * - Initialize provider/signer once per mount and refresh on demand.
+   * - NEW: Use isManuallyConnecting ref to ensure init effect doesn't clobber address/chainId set by connect().
    */
   const [address, setAddress] = useState('');
   const [chainId, setChainId] = useState('');
@@ -38,6 +39,7 @@ export function useEthereumWallet() {
   const providerRef = useRef(null);
   const signerRef = useRef(null);
   const initRan = useRef(false);
+  const isManuallyConnecting = useRef(false); // guard flag against init overwrites
 
   const isConnected = !!address;
 
@@ -66,7 +68,9 @@ export function useEthereumWallet() {
       const accounts = await eth.request({ method: 'eth_accounts' });
       if (accounts && accounts.length > 0) {
         // Ensure normalized and set immediately; do not clear if empty here (prevent flicker).
-        setAddress(ethers.utils.getAddress(accounts[0]));
+        if (!isManuallyConnecting.current) {
+          setAddress(ethers.utils.getAddress(accounts[0]));
+        }
       } else {
         // Intentionally avoid clearing address here to prevent flicker/flaky tests and race with connect().
         // Address will be cleared only on explicit disconnect() or 'accountsChanged' -> [] event.
@@ -82,7 +86,9 @@ export function useEthereumWallet() {
       const eth = detectProvider();
       if (!eth) return;
       const id = await eth.request({ method: 'eth_chainId' });
-      setChainId(id);
+      if (!isManuallyConnecting.current) {
+        setChainId(id);
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('Failed to read chainId', e);
@@ -97,6 +103,7 @@ export function useEthereumWallet() {
      */
     setError('');
     setConnecting(true);
+    isManuallyConnecting.current = true; // entering manual connect path
     try {
       const eth = detectProvider();
       if (!eth) {
@@ -124,6 +131,7 @@ export function useEthereumWallet() {
       }
     } finally {
       setConnecting(false);
+      isManuallyConnecting.current = false; // finished manual connect path
     }
   }, [detectProvider, ensureProvider]);
 
@@ -168,10 +176,12 @@ export function useEthereumWallet() {
             eth.request?.({ method: 'eth_accounts' }),
             eth.request?.({ method: 'eth_chainId' }),
           ]);
-          if (accounts && accounts.length > 0) {
-            setAddress(ethers.utils.getAddress(accounts[0]));
+          if (!isManuallyConnecting.current) {
+            if (accounts && accounts.length > 0) {
+              setAddress(ethers.utils.getAddress(accounts[0]));
+            }
+            if (id) setChainId(id);
           }
-          if (id) setChainId(id);
         } catch {
           // noop: keep silent to avoid noisy logs in tests
         }
