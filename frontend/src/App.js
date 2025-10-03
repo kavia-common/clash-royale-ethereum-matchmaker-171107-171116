@@ -11,6 +11,8 @@ import ClashRoyaleDashboard from './components/ClashRoyaleDashboard';
 import GameHistoryDashboard from './components/GameHistoryDashboard';
 import GameHistoryPage from './pages/GameHistoryPage';
 import SettingsModal from './components/SettingsModal';
+import CharacterFeatureHero from './components/CharacterFeatureHero';
+import './components/CharacterFeatureHero.css';
 import { apiGetProfiles, apiLinkAccount, apiGetLiveWagers, apiGetGameHistory } from './services/api';
 
 /**
@@ -163,6 +165,14 @@ function App() {
           </button>
         </div>
       </div>
+
+      {/* Character Feature Hero */}
+      <CharacterFeatureHero
+        title="Challenge the Arena. Wager with Confidence."
+        subtitle="Find players, set Ethereum-backed wagers, and play fair with escrow-protected matches."
+        primaryCta={{ label: 'Play Now', href: '#', onClick: () => setTiersOpen(true) }}
+        secondaryCta={{ label: 'Learn More', href: '/game-history' }}
+      />
 
       {/* Top header/navigation */}
       <div
