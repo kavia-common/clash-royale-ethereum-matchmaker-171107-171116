@@ -10,6 +10,7 @@ import TierSelectionModal from './components/TierSelectionModal';
 import ClashRoyaleDashboard from './components/ClashRoyaleDashboard';
 import GameHistoryDashboard from './components/GameHistoryDashboard';
 import GameHistoryPage from './pages/GameHistoryPage';
+import SettingsModal from './components/SettingsModal';
 import { apiGetProfiles, apiLinkAccount, apiGetLiveWagers, apiGetGameHistory } from './services/api';
 
 /**
@@ -25,6 +26,7 @@ function App() {
   const [theme, setTheme] = useState('light');
   const [linkOpen, setLinkOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Clash Royale linking state (frontend memory; real persistence should be backend/session)
   const [crTag, setCrTag] = useState('');
@@ -136,10 +138,12 @@ function App() {
             gap: 12,
           }}
         >
-          {/* Non-interactive red circle: Game History indicator */}
-          <div
-            aria-label="Game History indicator"
-            title="Game History"
+          {/* Interactive red circle: opens Settings */}
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Open Settings from Game History indicator"
+            title="Game History — Settings"
             style={{
               width: 44,
               height: 44,
@@ -153,15 +157,18 @@ function App() {
               fontWeight: 900,
               boxShadow: '0 6px 14px rgba(239,68,68,0.35)',
               userSelect: 'none',
+              cursor: 'pointer',
             }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}
+            onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
           >
             GH
-          </div>
+          </button>
 
-          {/* Interactive green rectangle: Make a Wager navigates to /game-history */}
+          {/* Interactive green rectangle: open Settings (formerly navigated to /game-history) */}
           <button
-            onClick={goToGameHistoryPrefetch}
-            aria-label="Make a wager"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Open Settings from Make a Wager"
             style={{
               backgroundColor: '#10B981',
               color: '#ffffff',
@@ -315,6 +322,8 @@ function App() {
           console.log('Tier selected:', tierId);
         }}
       />
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <ClashRoyaleDashboard
         open={crOpen}
