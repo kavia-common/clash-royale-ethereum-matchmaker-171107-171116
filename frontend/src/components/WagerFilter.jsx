@@ -29,11 +29,11 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     max: value?.max ?? max,
   });
 
-  // Track last emitted value to avoid duplicate emissions and assist blur logic
+  // Track last emitted value to avoid duplicate emissions and to compare on blur
   const lastEmittedRef = useRef({ min: value?.min ?? min, max: value?.max ?? max });
 
   useEffect(() => {
-    // Keep local state in sync if parent updates
+    // Sync local state with external value
     setLocal({
       min: value?.min ?? min,
       max: value?.max ?? max,
@@ -56,6 +56,10 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
   );
 
   const parseMaybeNumber = (val) => {
+    // Accept number types directly; parse strings
+    if (typeof val === 'number') {
+      return Number.isFinite(val) ? val : null;
+    }
     const n = parseFloat(val);
     return Number.isNaN(n) ? null : n;
   };
@@ -66,13 +70,14 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     return val;
   };
 
-  // Helper to emit only when valid and changed
-  const maybeEmit = (next) => {
+  // PUBLIC_INTERFACE
+  const emitIfValidAndChanged = (next) => {
+    /** Emit onChange only if both min and max are valid numbers and changed from last emission. */
     if (
       typeof next.min === 'number' &&
       typeof next.max === 'number' &&
-      !Number.isNaN(next.min) &&
-      !Number.isNaN(next.max)
+      Number.isFinite(next.min) &&
+      Number.isFinite(next.max)
     ) {
       const prev = lastEmittedRef.current;
       if (prev.min !== next.min || prev.max !== next.max) {
@@ -82,19 +87,25 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     }
   };
 
-  // Change handlers: during typing, only update local state. Emit only if parsed value is valid.
+  // Change handlers: do not emit onChange if either side is partial/invalid/empty.
   const handleMinChange = (raw) => {
-    const parsed = parseMaybeNumber(raw);
-    if (parsed === null) {
-      // Keep local string/partial by setting as-is, do not emit
+    const parsedMin = parseMaybeNumber(raw);
+    if (parsedMin === null) {
+      // Only update local to reflect the user's typing; no emission
       setLocal((curr) => ({ ...curr, min: raw }));
       return;
     }
-    let nextMin = clamp(parsed, min, max);
 
-    // compute nextMax using current local (which may be string); parse if possible else keep as number min
+    // Compute tentative numeric pair while respecting constraints
+    let nextMin = clamp(parsedMin, min, max);
     const parsedMax = parseMaybeNumber(local.max);
-    let nextMax = parsedMax === null ? min : clamp(parsedMax, min, max);
+    let nextMax = parsedMax === null ? null : clamp(parsedMax, min, max);
+
+    // If max is not parseable yet (user typing), only update local and don't emit
+    if (nextMax === null) {
+      setLocal((curr) => ({ ...curr, min: nextMin }));
+      return;
+    }
 
     if (nextMin > nextMax) {
       nextMax = nextMin;
@@ -102,20 +113,26 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
 
     const next = { min: nextMin, max: nextMax };
     setLocal(next);
-    // emit now that we have a valid numeric value
-    maybeEmit(next);
+    // Emit only when both are valid numbers
+    emitIfValidAndChanged(next);
   };
 
   const handleMaxChange = (raw) => {
-    const parsed = parseMaybeNumber(raw);
-    if (parsed === null) {
+    const parsedMax = parseMaybeNumber(raw);
+    if (parsedMax === null) {
       setLocal((curr) => ({ ...curr, max: raw }));
       return;
     }
-    let nextMax = clamp(parsed, min, max);
 
+    let nextMax = clamp(parsedMax, min, max);
     const parsedMin = parseMaybeNumber(local.min);
-    let nextMin = parsedMin === null ? min : clamp(parsedMin, min, max);
+    let nextMin = parsedMin === null ? null : clamp(parsedMin, min, max);
+
+    if (nextMin === null) {
+      // Min is partial/invalid; keep local update, no emission
+      setLocal((curr) => ({ ...curr, max: nextMax }));
+      return;
+    }
 
     if (nextMax < nextMin) {
       nextMin = nextMax;
@@ -123,42 +140,36 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
 
     const next = { min: nextMin, max: nextMax };
     setLocal(next);
-    maybeEmit(next);
+    emitIfValidAndChanged(next);
   };
 
-  // Blur handlers: if current field can be parsed into a valid number, normalize and emit if different
-  const handleMinBlur = () => {
-    const parsedMin = parseMaybeNumber(local.min);
-    const parsedMax = parseMaybeNumber(local.max);
-    if (parsedMin === null) return; // nothing to do
-    let nextMin = clamp(parsedMin, min, max);
-    let nextMax =
-      parsedMax === null ? clamp(value?.max ?? max, min, max) : clamp(parsedMax, min, max);
+  // Blur handlers: parse both fields, coerce into valid numeric range, and emit if changed
+  const handleBlurCoerceAndEmit = () => {
+    // Try parsing both
+    let pMin = parseMaybeNumber(local.min);
+    let pMax = parseMaybeNumber(local.max);
+
+    // If either is null, fallback to lastEmittedRef/current bounds
+    if (pMin === null) pMin = clamp(lastEmittedRef.current.min ?? min, min, max);
+    if (pMax === null) pMax = clamp(lastEmittedRef.current.max ?? max, min, max);
+
+    // Coerce order
+    let nextMin = clamp(pMin, min, max);
+    let nextMax = clamp(pMax, min, max);
     if (nextMin > nextMax) nextMax = nextMin;
 
     const next = { min: nextMin, max: nextMax };
     setLocal(next);
-    maybeEmit(next);
+    emitIfValidAndChanged(next);
   };
 
-  const handleMaxBlur = () => {
-    const parsedMin = parseMaybeNumber(local.min);
-    const parsedMax = parseMaybeNumber(local.max);
-    if (parsedMax === null) return;
-    let nextMax = clamp(parsedMax, min, max);
-    let nextMin =
-      parsedMin === null ? clamp(value?.min ?? min, min, max) : clamp(parsedMin, min, max);
-    if (nextMax < nextMin) nextMin = nextMax;
-
-    const next = { min: nextMin, max: nextMax };
-    setLocal(next);
-    maybeEmit(next);
-  };
+  const handleMinBlur = () => handleBlurCoerceAndEmit();
+  const handleMaxBlur = () => handleBlurCoerceAndEmit();
 
   const applyPreset = (p) => {
     const next = { min: p.min, max: p.max };
     setLocal(next);
-    maybeEmit(next);
+    emitIfValidAndChanged(next);
   };
 
   return (
