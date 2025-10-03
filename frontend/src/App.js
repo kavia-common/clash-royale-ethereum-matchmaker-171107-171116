@@ -5,6 +5,7 @@ import WalletStatus from './components/WalletStatus';
 import WagerFilter from './components/WagerFilter';
 import ProfileList from './components/ProfileList';
 import DepositsDashboard from './components/DepositsDashboard';
+import TierSelectionModal from './components/TierSelectionModal';
 import { apiGetProfiles, apiLinkAccount } from './services/api';
 
 /**
@@ -18,6 +19,7 @@ import { apiGetProfiles, apiLinkAccount } from './services/api';
 function App() {
   const [theme, setTheme] = useState('light');
   const [linkOpen, setLinkOpen] = useState(false);
+  const [tiersOpen, setTiersOpen] = useState(false);
 
   // Profile data and filtering state
   const [profiles, setProfiles] = useState([]);
@@ -107,6 +109,22 @@ function App() {
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
             <WalletStatus />
             <button
+              onClick={() => setTiersOpen(true)}
+              style={{
+                background: '#F59E0B',
+                color: '#111827',
+                border: '1px solid transparent',
+                padding: '10px 14px',
+                borderRadius: 10,
+                cursor: 'pointer',
+                fontWeight: 800,
+                boxShadow: '0 2px 8px rgba(245,158,11,0.35)',
+              }}
+              aria-label="Open tier selection"
+            >
+              View Tiers
+            </button>
+            <button
               onClick={() => setLinkOpen(true)}
               style={{
                 background: '#2563EB',
@@ -188,6 +206,17 @@ function App() {
         open={linkOpen}
         onClose={() => setLinkOpen(false)}
         onSubmit={handleLinkSubmit}
+      />
+
+      <TierSelectionModal
+        open={tiersOpen}
+        onClose={() => setTiersOpen(false)}
+        onSelect={(tierId) => {
+          // Placeholder: integrate with future subscription or account settings.
+          // For now, log selection for visibility.
+          // eslint-disable-next-line no-console
+          console.log('Tier selected:', tierId);
+        }}
       />
     </div>
   );
