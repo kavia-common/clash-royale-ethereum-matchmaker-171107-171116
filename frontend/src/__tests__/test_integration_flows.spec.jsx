@@ -9,7 +9,7 @@
 // Increase overall timeout for slower CI environments and async wallet flows
 jest.setTimeout(15000);
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
 import { ethers } from 'ethers';
@@ -111,13 +111,13 @@ describe('Integration: Profile listing and wager filtering (mocked API)', () => 
  * 2) Wallet connect flow: mock window.ethereum and verify WalletStatus reflects connection.
  */
 describe('Integration: Ethereum wallet integration (mocked provider)', () => {
-  test('connects to wallet and shows connected badge (address may appear slightly later)', async () => {
+  test('connects to wallet, records provider calls, shows connected badge, and exposes disconnect button', async () => {
     // Arrange: mock profiles fetch so the app renders without backend
     mockFetchProfilesOnce({ profiles: [] });
     // Arrange: mock ethereum provider with a valid checksummed address
     const validAddress = ethers.utils.getAddress('0x1234567890abcdef1234567890abcdef12345678');
     // Install ethereum mock BEFORE rendering App to ensure effects see the provider
-    installEthereumMock({
+    const eth = installEthereumMock({
       accounts: [validAddress],
       chainId: '0x5', // Goerli for example
     });
@@ -128,11 +128,19 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
     const connectBtn = await screen.findByRole('button', { name: /connect ethereum wallet/i });
     expect(connectBtn).toBeEnabled();
 
-    // Click connect; our mock will return the provided account
-    await userEvent.click(connectBtn);
+    // Click connect wrapped in act and flush microtasks
+    await act(async () => {
+      await userEvent.click(connectBtn);
+      await Promise.resolve();
+    });
 
-    // Badge should indicate connected - wait for the state to update
-    await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument(), { timeout: 8000 });
+    // Assert provider calls
+    const methodsCalled = eth.request.mock.calls.map(c => c?.[0]?.method);
+    expect(methodsCalled).toContain('eth_requestAccounts');
+    expect(methodsCalled).toContain('eth_chainId');
+
+    // Badge should indicate connected - wait for the state to update with increased timeout
+    await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument(), { timeout: 10000 });
 
     // Address text content may be empty briefly; allow a plausible match or empty during first check
     const addrNode = await screen.findByTestId('wallet-address');
@@ -141,10 +149,10 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
       expect(
         txt === '' || /^0x[0-9a-fA-F]{2,}…[0-9a-fA-F]{4}$/.test(txt) || /0x[0-9a-fA-F]{4,}/.test(txt)
       ).toBe(true);
-    }, { timeout: 8000 });
+    }, { timeout: 10000 });
 
-    // Disconnect should now be available (await to reduce timing flakiness)
-    const disconnectBtn = await screen.findByRole('button', { name: /disconnect ethereum wallet/i });
+    // Disconnect should now be available (explicit timeout)
+    const disconnectBtn = await screen.findByRole('button', { name: /disconnect ethereum wallet/i }, { timeout: 10000 });
     expect(disconnectBtn).toBeInTheDocument();
   });
 
@@ -166,14 +174,22 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
     render(<App />);
 
     const connectBtn = await screen.findByRole('button', { name: /connect ethereum wallet/i });
-    await userEvent.click(connectBtn);
+    await act(async () => {
+      await userEvent.click(connectBtn);
+      await Promise.resolve();
+    });
 
     // Error is rendered within WalletStatus via role="alert"
-    const alert = await screen.findByRole('alert');
+    const alert = await screen.findByRole('alert', {}, { timeout: 10000 });
     expect(alert).toHaveTextContent(/Connection request rejected/i);
 
+    // Verify provider methods attempted
+    const methodsCalled = eth.request.mock.calls.map(c => c?.[0]?.method);
+    expect(methodsCalled).toContain('eth_requestAccounts');
+    expect(methodsCalled).toContain('eth_chainId');
+
     // Remains disconnected state
-    expect(screen.getByText(/Disconnected/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Disconnected/i)).toBeInTheDocument(), { timeout: 10000 });
   });
 });
 

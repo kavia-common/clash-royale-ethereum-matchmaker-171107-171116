@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import WalletStatus from '../components/WalletStatus';
 import { ethers } from 'ethers';
@@ -40,9 +40,9 @@ afterEach(() => {
 });
 
 describe('WalletStatus', () => {
-  test('renders disconnected, connects, shows connected badge and a plausible address, and can disconnect', async () => {
+  test('renders disconnected, connects, records provider calls, shows connected badge and a plausible address, and can disconnect', async () => {
     // Ensure ethereum mock is installed BEFORE rendering to avoid act warnings during effect init
-    installEthereumMock();
+    const eth = installEthereumMock();
 
     render(<WalletStatus />);
 
@@ -51,28 +51,37 @@ describe('WalletStatus', () => {
     const connectBtn = screen.getByRole('button', { name: /connect ethereum wallet/i });
     expect(connectBtn).toBeEnabled();
 
-    // Connect wallet
-    await userEvent.click(connectBtn);
+    // Wrap the connect click in act and flush microtasks
+    await act(async () => {
+      await userEvent.click(connectBtn);
+      await Promise.resolve(); // flush microtasks
+    });
+
+    // Verify ethereum.request was called for account request and chain id
+    const methodsCalled = eth.request.mock.calls.map(c => (c?.[0]?.method));
+    expect(methodsCalled).toContain('eth_requestAccounts');
+    expect(methodsCalled).toContain('eth_chainId');
 
     // Badge indicates connected - this is the most reliable indicator post-connect
-    await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument(), { timeout: 5000 });
+    await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument(), { timeout: 10000 });
 
     // Address may update slightly after the badge; allow for empty initial then filled value.
     const addrEl = await screen.findByTestId('wallet-address');
     await waitFor(() => {
-      // Accept either the exact truncated format or any plausible 0x prefix with hex following (at least 4 chars)
+      const content = addrEl.textContent || '';
       expect(
-        addrEl.textContent === '' || /^0x[0-9a-fA-F]{2,}…[0-9a-fA-F]{4}$/.test(addrEl.textContent) || /0x[0-9a-fA-F]{4,}/.test(addrEl.textContent)
+        content === '' || /^0x[0-9a-fA-F]{2,}…[0-9a-fA-F]{4}$/.test(content) || /0x[0-9a-fA-F]{4,}/.test(content)
       ).toBe(true);
-    }, { timeout: 5000 });
+    }, { timeout: 10000 });
 
     // Disconnect should now be available (await to reduce timing flakiness)
-    const disconnectBtn = await screen.findByRole('button', { name: /disconnect ethereum wallet/i });
+    const disconnectBtn = await screen.findByRole('button', { name: /disconnect ethereum wallet/i }, { timeout: 10000 });
     expect(disconnectBtn).toBeInTheDocument();
+
     await userEvent.click(disconnectBtn);
 
     // Back to disconnected state
-    expect(screen.getByText(/Disconnected/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Disconnected/i)).toBeInTheDocument(), { timeout: 10000 });
   });
 
   test('handles user rejection with an error alert and remains disconnected', async () => {
@@ -92,12 +101,22 @@ describe('WalletStatus', () => {
     render(<WalletStatus />);
 
     const connectBtn = screen.getByRole('button', { name: /connect ethereum wallet/i });
-    await userEvent.click(connectBtn);
+    await act(async () => {
+      await userEvent.click(connectBtn);
+      await Promise.resolve();
+    });
 
-    const alert = await screen.findByRole('alert');
+    // Assert error UI
+    const alert = await screen.findByRole('alert', {}, { timeout: 10000 });
     expect(alert).toHaveTextContent(/Connection request rejected/i);
 
+    // Assert we attempted the request and chain id reads as part of flow
+    const methodsCalled = eth.request.mock.calls.map(c => (c?.[0]?.method));
+    expect(methodsCalled).toContain('eth_requestAccounts');
+    // eth_chainId may be called by init or flow; allow either
+    expect(methodsCalled).toContain('eth_chainId');
+
     // Still disconnected
-    expect(screen.getByText(/Disconnected/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Disconnected/i)).toBeInTheDocument(), { timeout: 10000 });
   });
 });
