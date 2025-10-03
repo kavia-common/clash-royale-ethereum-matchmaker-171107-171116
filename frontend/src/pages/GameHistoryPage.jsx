@@ -1,9 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import GameHistoryDashboard from '../components/GameHistoryDashboard';
 
 // PUBLIC_INTERFACE
 export default function GameHistoryPage() {
-  /** GameHistoryPage: Full-page view for game history with a Live Feed at top and history stats/list below. */
+  /**
+   * GameHistoryPage: Full-page view for game history.
+   * Top row: Live Stream (left) + Place Bet panel (right) with a close (×) top-right.
+   * Below: Win/Loss/Profit stats and past games table (reusing GameHistoryDashboard inline).
+   */
+  const navigate = useNavigate();
+
   return (
     <div style={styles.pageWrap}>
       <header style={styles.pageHeader}>
@@ -13,12 +20,26 @@ export default function GameHistoryPage() {
             Track live wagers and review your past matches, win/loss, and profit.
           </p>
         </div>
+        <button
+          type="button"
+          aria-label="Close game history"
+          onClick={() => navigate(-1)}
+          style={styles.closeButton}
+          title="Close and return"
+        >
+          ×
+        </button>
       </header>
 
-      <LiveFeedPanel />
+      {/* Top row: Live Stream (left) + Place Bet (right) */}
+      <section style={styles.section}>
+        <div style={styles.topRow}>
+          <LiveFeedPanel />
+          <PlaceBetPanel />
+        </div>
+      </section>
 
-      {/* Inline the content of the GameHistoryDashboard (using its internals in full-width).
-          We reuse component by mounting it in "always open" mode with a wrapper that neutralizes the modal overlay. */}
+      {/* Inline the history dashboard content (stats + table) */}
       <div style={styles.section}>
         <InlineGameHistory />
       </div>
@@ -40,9 +61,9 @@ function LiveFeedPanel() {
   }, []);
 
   return (
-    <section aria-label="Live feed of ongoing games and wagers" style={styles.card}>
+    <section aria-label="Live feed of ongoing games and wagers" style={{ ...styles.card, ...styles.liveCard }}>
       <div style={styles.cardHeader}>
-        <h2 style={styles.cardTitle}>Live Feed</h2>
+        <h2 style={styles.cardTitle}>Live Stream</h2>
         <span style={styles.badge}>Realtime</span>
       </div>
 
@@ -112,17 +133,96 @@ function StatusPill({ status }) {
   );
 }
 
+function PlaceBetPanel() {
+  // Mock place bet UI only; logs values on submit.
+  const [matchId, setMatchId] = useState('');
+  const [amount, setAmount] = useState('0.10');
+  const [note, setNote] = useState('');
+
+  const presets = ['0.05', '0.10', '0.25', '0.50', '1.00'];
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    // eslint-disable-next-line no-console
+    console.log('Place bet (mock):', { matchId, amount: Number(amount), note });
+    setNote('Wager placed (mock). Integrate with escrow and matchmaking flow.');
+    setTimeout(() => setNote(''), 1800);
+  };
+
+  return (
+    <section aria-label="Place a wager" style={{ ...styles.card, ...styles.placeCard }}>
+      <div style={styles.cardHeader}>
+        <h2 style={styles.cardTitle}>Place Bet</h2>
+      </div>
+
+      <form onSubmit={onSubmit} style={styles.formCol}>
+        <label style={styles.label}>
+          Match
+          <select
+            value={matchId}
+            onChange={(e) => setMatchId(e.target.value)}
+            required
+            style={styles.input}
+          >
+            <option value="" disabled>Select a match</option>
+            <option value="match-1">vs StormRider · Best of 1</option>
+            <option value="match-2">vs BlueWhale · Best of 3</option>
+            <option value="match-3">vs TidalWave · Best of 1</option>
+          </select>
+        </label>
+
+        <label style={styles.label}>
+          Amount (ETH)
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.10"
+            style={styles.input}
+            required
+          />
+        </label>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {presets.map(p => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setAmount(p)}
+              style={{ ...styles.pillBtn, ...(amount === p ? styles.pillBtnActive : null) }}
+              aria-pressed={amount === p}
+            >
+              {p} ETH
+            </button>
+          ))}
+        </div>
+
+        <button type="submit" style={styles.submitBtn}>
+          Place Wager
+        </button>
+
+        {note && <div style={styles.noteOk} role="status">{note}</div>}
+      </form>
+    </section>
+  );
+}
+
 function InlineGameHistory() {
-  // We mount the existing component but visually neutralize the overlay by intercepting its portal-like overlay.
-  // Approach: Render the component and override its overlay CSS via a scoped wrapper to display inline.
+  // Render GameHistoryDashboard inline by neutralizing overlay
   return (
     <div style={inlineStyles.shell}>
-      <GameHistoryDashboard open onClose={() => { /* no-op in page form */ }} />
+      <GameHistoryDashboard open onClose={() => { /* page context */ }} />
       <style>
         {`
-          /* Force the modal-like overlay/content to behave inline for page rendering.
-             This targets the structure in GameHistoryDashboard by overriding top-level overlay styles. */
-          [data-inline-history] { display: block; }
+          [data-inline-history] {
+            display: block;
+            position: static !important;
+            inset: auto !important;
+            background: transparent !important;
+            padding: 0 !important;
+          }
         `}
       </style>
     </div>
@@ -168,6 +268,8 @@ const styles = {
     maxWidth: 1180,
     margin: '0 auto',
     padding: '20px 16px 0',
+    display: 'flex',
+    alignItems: 'flex-start',
   },
   title: {
     margin: '0 0 4px',
@@ -180,19 +282,44 @@ const styles = {
     color: '#374151',
     fontSize: 14,
   },
+  closeButton: {
+    marginLeft: 'auto',
+    border: 'none',
+    background: '#FFFFFF',
+    color: '#111827',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    cursor: 'pointer',
+    fontSize: 20,
+    fontWeight: 900,
+    lineHeight: 1,
+    boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
+    borderBottom: '2px solid #E5E7EB',
+  },
   section: {
     maxWidth: 1180,
     margin: '16px auto 0',
     padding: '0 16px',
   },
+  topRow: {
+    display: 'grid',
+    gridTemplateColumns: '1.2fr 1fr',
+    gap: 16,
+    alignItems: 'stretch',
+  },
   card: {
-    maxWidth: 1180,
-    margin: '16px auto 0',
     padding: '14px',
     background: '#ffffff',
     border: '1px solid #E5E7EB',
     borderRadius: 12,
     boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
+  },
+  liveCard: {
+    minHeight: 260,
+  },
+  placeCard: {
+    minHeight: 260,
   },
   cardHeader: {
     display: 'flex',
@@ -259,6 +386,63 @@ const styles = {
   feedRight: { textAlign: 'right' },
   amount: { fontWeight: 900, color: '#111827' },
   matchup: { fontSize: 12, color: '#6B7280', fontWeight: 700 },
+  formCol: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+  },
+  label: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    fontSize: 12,
+    fontWeight: 800,
+    color: '#374151',
+  },
+  input: {
+    height: 38,
+    borderRadius: 10,
+    border: '1px solid #E5E7EB',
+    padding: '0 10px',
+    background: '#FFFFFF',
+    color: '#111827',
+    outline: 'none',
+    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)',
+  },
+  pillBtn: {
+    border: '1px solid #E5E7EB',
+    background: '#F9FAFB',
+    color: '#111827',
+    borderRadius: 999,
+    padding: '6px 10px',
+    cursor: 'pointer',
+    fontWeight: 800,
+    fontSize: 12,
+  },
+  pillBtnActive: {
+    background: '#2563EB',
+    color: '#FFFFFF',
+    borderColor: '#2563EB',
+  },
+  submitBtn: {
+    marginTop: 6,
+    background: '#2563EB',
+    color: '#FFFFFF',
+    border: '1px solid transparent',
+    padding: '10px 12px',
+    borderRadius: 10,
+    cursor: 'pointer',
+    fontWeight: 800,
+    boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
+  },
+  noteOk: {
+    fontSize: 12,
+    color: '#065F46',
+    background: '#ECFDF5',
+    border: '1px solid #A7F3D0',
+    padding: '6px 8px',
+    borderRadius: 8,
+  },
 };
 
 const inlineStyles = {
