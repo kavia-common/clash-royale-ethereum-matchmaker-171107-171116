@@ -135,15 +135,16 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
     });
 
     // Wait explicitly for provider requests to be triggered sequentially to avoid flakiness
-    await waitFor(() => {
-      const methodsCalled = eth.request.mock.calls.map(c => c?.[0]?.method);
-      expect(methodsCalled).toContain('eth_requestAccounts');
-    }, { timeout: 10000 });
-
-    await waitFor(() => {
-      const methodsCalled = eth.request.mock.calls.map(c => c?.[0]?.method);
-      expect(methodsCalled).toContain('eth_chainId');
-    }, { timeout: 10000 });
+    // First ensure eth_requestAccounts was called
+    await waitFor(
+      () => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_requestAccounts'),
+      { timeout: 10000 }
+    );
+    // Then ensure eth_chainId was called
+    await waitFor(
+      () => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_chainId'),
+      { timeout: 10000 }
+    );
 
     // Badge should indicate connected - wait for the state to update with increased timeout
     await waitFor(() => expect(screen.getByText(/Connected/i)).toBeInTheDocument(), { timeout: 10000 });
@@ -190,15 +191,14 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
     expect(alert).toHaveTextContent(/Connection request rejected/i);
 
     // Verify provider methods attempted sequentially with longer timeouts
-    await waitFor(() => {
-      const methodsCalled = eth.request.mock.calls.map(c => c?.[0]?.method);
-      expect(methodsCalled).toContain('eth_requestAccounts');
-    }, { timeout: 10000 });
-
-    await waitFor(() => {
-      const methodsCalled = eth.request.mock.calls.map(c => c?.[0]?.method);
-      expect(methodsCalled).toContain('eth_chainId');
-    }, { timeout: 10000 });
+    await waitFor(
+      () => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_requestAccounts'),
+      { timeout: 10000 }
+    );
+    await waitFor(
+      () => eth.request.mock.calls.some(c => c?.[0]?.method === 'eth_chainId'),
+      { timeout: 10000 }
+    );
 
     // Remains disconnected state
     await waitFor(() => expect(screen.getByText(/Disconnected/i)).toBeInTheDocument(), { timeout: 10000 });
