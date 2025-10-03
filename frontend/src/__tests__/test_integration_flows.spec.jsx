@@ -143,8 +143,8 @@ describe('Integration: Ethereum wallet integration (mocked provider)', () => {
       ).toBe(true);
     }, { timeout: 8000 });
 
-    // Disconnect should now be available
-    const disconnectBtn = screen.getByRole('button', { name: /disconnect ethereum wallet/i });
+    // Disconnect should now be available (await to reduce timing flakiness)
+    const disconnectBtn = await screen.findByRole('button', { name: /disconnect ethereum wallet/i });
     expect(disconnectBtn).toBeInTheDocument();
   });
 

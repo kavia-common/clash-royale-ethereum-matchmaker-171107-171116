@@ -66,8 +66,8 @@ describe('WalletStatus', () => {
       ).toBe(true);
     }, { timeout: 5000 });
 
-    // Disconnect path visible
-    const disconnectBtn = screen.getByRole('button', { name: /disconnect ethereum wallet/i });
+    // Disconnect path visible (await for presence to avoid flakiness)
+    const disconnectBtn = await screen.findByRole('button', { name: /disconnect ethereum wallet/i });
     await userEvent.click(disconnectBtn);
 
     // Back to disconnected state
