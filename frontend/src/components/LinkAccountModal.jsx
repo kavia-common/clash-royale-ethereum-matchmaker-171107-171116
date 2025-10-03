@@ -80,9 +80,12 @@ export default function LinkAccountModal({
     return validateToken(token);
   }, [mode, tag, token, touched]);
 
-  const canSubmit = useMemo(() => {
-    if (!touched) return false;
-    return validation.valid && !submitting;
+  const [canSubmit, setCanSubmit] = useState(false);
+
+  // Recompute canSubmit after relevant state changes, allowing React to settle between events (e.g., blur)
+  useEffect(() => {
+    const next = touched && validation.valid && !submitting;
+    setCanSubmit(Boolean(next));
   }, [touched, validation, submitting]);
 
   const handleSubmit = async (e) => {

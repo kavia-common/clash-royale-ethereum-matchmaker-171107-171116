@@ -48,20 +48,48 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     [min, max]
   );
 
+  const safeNumber = (val) => {
+    const n = parseFloat(val);
+    return Number.isNaN(n) ? 0 : n;
+  };
+
+  const clamp = (val, lo, hi) => {
+    if (val < lo) return lo;
+    if (val > hi) return hi;
+    return val;
+  };
+
+  // Ensure emitted values are proper numbers with min<=max and within global bounds
   const handleMinChange = (v) => {
-    const next = { ...local, min: Number(v) };
-    if (next.min > next.max) {
-      next.max = next.min;
+    let nextMin = safeNumber(v);
+    nextMin = clamp(nextMin, min, max);
+
+    let nextMax = local.max;
+    if (Number.isNaN(parseFloat(nextMax))) nextMax = min;
+    nextMax = clamp(nextMax, min, max);
+
+    if (nextMin > nextMax) {
+      nextMax = nextMin;
     }
+
+    const next = { min: nextMin, max: nextMax };
     setLocal(next);
     onChange?.(next);
   };
 
   const handleMaxChange = (v) => {
-    const next = { ...local, max: Number(v) };
-    if (next.max < next.min) {
-      next.min = next.max;
+    let nextMax = safeNumber(v);
+    nextMax = clamp(nextMax, min, max);
+
+    let nextMin = local.min;
+    if (Number.isNaN(parseFloat(nextMin))) nextMin = min;
+    nextMin = clamp(nextMin, min, max);
+
+    if (nextMax < nextMin) {
+      nextMin = nextMax;
     }
+
+    const next = { min: nextMin, max: nextMax };
     setLocal(next);
     onChange?.(next);
   };
