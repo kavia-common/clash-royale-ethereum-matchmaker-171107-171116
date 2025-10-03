@@ -31,3 +31,14 @@ Stubs and TODOs:
 - Escrow ABI is a minimal placeholder with deposit(uint256 matchId) payable.
   Replace with the actual ABI and method signature as needed.
 - Profile data shape and API paths may require updates to match your backend.
+
+Game History (new):
+- Component: GameHistoryDashboard (src/components/GameHistoryDashboard.jsx)
+- Shows win/loss count, past games, and total profit/loss, styled in Ocean Professional.
+- Uses mocked data by default. To integrate backend, pass a fetcher prop that returns:
+  {
+    stats: { wins: number, losses: number, totalProfitEth?: number },
+    games: Array<{ id, date, opponent, wagerEth, result: 'win'|'loss'|'draw'|'cancelled', profitEth }>
+  }
+- Suggested endpoint: GET /games/history (authenticated). Attach Authorization header if required.
+- App integrates a "Game History" button in the header to open this dashboard.

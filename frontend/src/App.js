@@ -7,6 +7,7 @@ import ProfileList from './components/ProfileList';
 import DepositsDashboard from './components/DepositsDashboard';
 import TierSelectionModal from './components/TierSelectionModal';
 import ClashRoyaleDashboard from './components/ClashRoyaleDashboard';
+import GameHistoryDashboard from './components/GameHistoryDashboard';
 import { apiGetProfiles, apiLinkAccount } from './services/api';
 
 /**
@@ -26,6 +27,8 @@ function App() {
   const [crTag, setCrTag] = useState('');
   const [crToken, setCrToken] = useState('');
   const [crOpen, setCrOpen] = useState(false);
+  // Game history dashboard state
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Profile data and filtering state
   const [profiles, setProfiles] = useState([]);
@@ -170,6 +173,23 @@ function App() {
               View CR Stats
             </button>
             <button
+              onClick={() => setHistoryOpen(true)}
+              style={{
+                background: '#111827',
+                color: '#ffffff',
+                border: '1px solid transparent',
+                padding: '10px 14px',
+                borderRadius: 10,
+                cursor: 'pointer',
+                fontWeight: 700,
+                boxShadow: '0 2px 8px rgba(17,24,39,0.25)',
+              }}
+              aria-label="View Game History"
+              title="Open your game history"
+            >
+              Game History
+            </button>
+            <button
               className="theme-toggle"
               onClick={toggleTheme}
               aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
@@ -253,6 +273,17 @@ function App() {
         onClose={() => setCrOpen(false)}
         playerTag={crTag}
         accessToken={crToken}
+      />
+
+      <GameHistoryDashboard
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        // Example of how to integrate with backend later:
+        // fetcher={async () => {
+        //   const res = await fetch(`${process.env.REACT_APP_API_URL}/games/history`, { headers: { Authorization: `Bearer ${YOUR_TOKEN}` }});
+        //   if (!res.ok) throw new Error('Failed to load history');
+        //   return await res.json();
+        // }}
       />
     </div>
   );
