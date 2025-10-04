@@ -1,17 +1,113 @@
 # Frontend Integration Notes
 
-This document captures the assumed backend API contracts and domain models for the Clash Royale Ethereum Matchmaker frontend. These contracts drive the typed wrappers in `src/services/api.js` and the on‑chain helpers in `src/services/blockchain.js`.
+This document describes how the React frontend integrates with the backend API and Ethereum, including environment configuration, mock modes, wallet verification, escrow flows, and key UI behaviors. Contracts and endpoints are scaffolded and must be aligned with your backend and on-chain deployments.
 
-IMPORTANT
-- These endpoints are assumptions for scaffolding. Please align with your backend team and adjust as needed.
-- Errors follow a consistent JSON shape: { code, message, details? }.
-- See inline TODOs in service files referencing this document for follow-ups.
+## Overview
 
-Environment variables
-- REACT_APP_API_URL: Base URL for backend (e.g., http://localhost:8000)
-- REACT_APP_ESCROW_ADDRESS: Escrow contract address on current chain.
-- REACT_APP_CHAIN_ID: Expected chain id (hex or decimal) used by UI to warn on wrong network.
-- REACT_APP_BLOCK_EXPLORER_BASE: Optional base URL for block explorer (e.g., https://etherscan.io)
+The frontend supports two development-friendly defaults:
+- Mock API mode: Enabled when REACT_APP_API_URL is not set. The app returns deterministic mock data for profiles, live wagers, and history. A banner appears in listing components to indicate mock mode.
+- Dry-run escrow mode: Enabled either when REACT_APP_DRY_RUN_ESCROW=true or when REACT_APP_ESCROW_ADDRESS is not set. Escrow deposits are simulated and return a synthetic transaction hash. The Escrow modal displays a dry-run banner.
+
+These defaults let you develop the UI without a running backend or deployed contracts. To enable full integration, configure the environment variables and connect to a testnet such as Sepolia.
+
+## Environment Variables
+
+Required for full integration and used throughout the app:
+
+- REACT_APP_API_URL: Backend API base URL (e.g., http://localhost:8000). If omitted, mock API mode is active.
+- REACT_APP_ESCROW_ADDRESS: Escrow contract address on the configured chain. If empty, escrow runs in dry-run mode.
+- REACT_APP_CHAIN_ID: Expected EVM chain ID as a decimal number (e.g., 11155111 for Sepolia). The UI warns on network mismatches.
+- REACT_APP_BLOCK_EXPLORER_BASE: Base URL for the chain’s block explorer (e.g., https://sepolia.etherscan.io). Used for transaction/address links.
+- REACT_APP_DRY_RUN_ESCROW: Set to true to always simulate escrow deposits regardless of address configuration.
+
+Notes
+- CRA requires REACT_APP_ prefixes. Keep your .env out of version control.
+- The blockchain client derives defaults for development (Sepolia chainId 11155111, explorer base https://sepolia.etherscan.io) and logs warnings when variables are missing or invalid.
+
+## Quickstart (Mock mode)
+
+1) Install dependencies and start the app:
+   - cd frontend
+   - npm install
+   - npm start
+2) Leave REACT_APP_API_URL unset to enable mock API mode.
+3) Leave REACT_APP_ESCROW_ADDRESS unset to keep escrow in dry-run mode.
+4) Connect a wallet to see the UI behavior, though no real transactions are sent in dry-run.
+
+Key indicators:
+- Profile list shows an info banner that mock data is being used.
+- Escrow modal shows an info banner that deposits are simulated.
+
+## Switching to Real Services
+
+To point the app at real backend and on-chain services:
+
+1) Backend API
+   - Set REACT_APP_API_URL to your backend (e.g., http://localhost:8000 or https://api.example.com).
+
+2) Ethereum/Testnet (Sepolia example)
+   - Set REACT_APP_CHAIN_ID to 11155111.
+   - Set REACT_APP_BLOCK_EXPLORER_BASE to https://sepolia.etherscan.io.
+   - Deploy your escrow contract and set REACT_APP_ESCROW_ADDRESS to the deployed address (0x-prefixed, 40 hex chars).
+   - Ensure your wallet is on Sepolia. The UI warns if the selected network chainId differs.
+
+3) Dry-run toggle
+   - Set REACT_APP_DRY_RUN_ESCROW=false and ensure REACT_APP_ESCROW_ADDRESS is provided to send real transactions.
+   - If REACT_APP_DRY_RUN_ESCROW=true or the address is missing, escrow remains simulated.
+
+## Ethereum Wallet & Network
+
+Wallet connection is managed in src/hooks/useEthereumWallet.js and surfaced in src/components/WalletStatus.jsx:
+- Connect: Prompts the browser wallet to connect, setting address and chainId.
+- Verify: Performs a SIWE-style flow via api.getWalletNonce and api.verifyWalletSignature to establish a backend session.
+- Network warnings: The app compares the wallet’s chainId to REACT_APP_CHAIN_ID (and to escrow config when provided) and displays a non-blocking warning if mismatched.
+
+Recommended Sepolia setup:
+- REACT_APP_CHAIN_ID=11155111
+- REACT_APP_BLOCK_EXPLORER_BASE=https://sepolia.etherscan.io
+
+## Escrow (Deposit/Withdraw) Flow
+
+Primary UX is in src/components/EscrowModal.jsx, and on-chain helpers in src/services/blockchain.js:
+- Initiate: The app calls api.initiateWager({ opponentId, wagerEth }) to reserve a wager and obtain an ID.
+- Deposit: The app creates a BlockchainClient with the signer and escrow config, then calls deposit({ wagerId, amountEth }).
+  - Dry-run: Returns a synthetic txHash instantly after a short delay.
+  - Real: Sends a transaction to deposit(uint256) payable on the escrow contract. Replace the placeholder ABI once finalized.
+- Notify: After a successful real deposit, the app calls api.depositNotify({ id, txHash, amountEth }) and may call api.confirmWager({ id }) depending on backend semantics.
+- Status: The app polls api.getEscrowStatus({ wagerId }) to detect readiness. A block explorer link is shown if REACT_APP_BLOCK_EXPLORER_BASE is set.
+
+Withdrawals/refunds are not yet implemented in the UI. Add contract support and API routes, then expose actions next to open wagers as needed.
+
+## Matchmaking & Wager Filtering
+
+Profiles and filtering are implemented in:
+- Profiles: src/components/ProfileList.jsx uses api.getProfiles with optional minWager and maxWager.
+- Filter: src/components/WagerFilter.jsx manages a min/max ETH range with immediate preset buttons. The store keeps the active filter, and ProfileList applies it client-side and server-side for consistency.
+
+To challenge a profile, the user opens EscrowModal with the selected opponent and proceeds through initiate and deposit steps.
+
+## Clash Royale Account Linking
+
+The linking flow is implemented in src/components/LinkAccountModal.jsx:
+- Users can link via player tag or API token. The modal validates basic format locally.
+- The modal requires a verified wallet session unless an external onSubmit handler is provided (e.g., tests).
+- API endpoints: api.crLink({ tag, token }) and api.getCRMe().
+- After linking, the app fetches the linked profile and stores it.
+
+## Game History & Live Wagers
+
+- History: api.getWagerHistory returns the user’s wager history, rendered by GameHistoryDashboard and GameHistoryPage. Periodic refresh is enabled.
+- Live wagers: api.getLiveWagers feeds the live ticker in GameHistoryPage. In mock mode, a rotating stream is synthesized for UX.
+
+## Environment and Error Handling Details
+
+- Mock API mode is determined in src/services/api.js by the absence of REACT_APP_API_URL and non-production NODE_ENV.
+- Dry-run escrow mode is determined in src/services/blockchain.js by REACT_APP_DRY_RUN_ESCROW=true or a missing REACT_APP_ESCROW_ADDRESS.
+- The app logs warnings for invalid or missing environment values in development and provides friendly UI errors for common wallet issues (rejected signature, wrong network, insufficient funds).
+
+## API Contracts (Assumed)
+
+The frontend assumes the following JSON endpoints and error shapes. Align these with your backend:
 
 Error format
 - JSON: { code: string, message: string, details?: any }
@@ -20,133 +116,47 @@ Error format
   - { code: "VALIDATION_ERROR", message: "Invalid input", details: { field: "wagerEth" } }
   - { code: "ESCROW_MISMATCH", message: "Deposit amount incorrect" }
 
-Domain models (frontend typedefs)
-- UserProfile: { id: string, username: string, rank?: string, avatarUrl?: string, wagerEth: number }
-- Wager:
-  {
-    id: string,
-    status: "initiated" | "awaiting-deposits" | "ready" | "in-progress" | "completed" | "cancelled",
-    players: { challenger: string, opponent: string },
-    amounts: { challengerEth: number, opponentEth: number, totalEth?: number },
-    createdAt: string, updatedAt?: string
-  }
-- GameHistoryItem:
-  { id: string, date: string, opponent: string, wagerEth: number,
-    result: "win" | "loss" | "draw" | "cancelled", profitEth?: number }
-- CRProfile: Minimal subset for UI:
-  {
-    tag: string, name: string, trophies?: number, bestTrophies?: number,
-    expLevel?: number, wins?: number, losses?: number, clan?: { name?: string }
-  }
-
 Session and authentication
 - POST /auth/wallet-nonce
-  Purpose: Request a nonce to sign with the user's wallet for authentication.
-  Request: { address: string }
-  Response: { nonce: string, expiresInSec?: number }
-  Errors: { code: "RATE_LIMIT" | "INVALID_ADDRESS", message, details? }
-
 - POST /auth/wallet-verify
-  Purpose: Verify a signed nonce and establish a session (cookie or token).
-  Request: { address: string, signature: string }
-  Response: { ok: true, user: { id, address }, token?: string }
-  Errors: { code: "INVALID_SIGNATURE" | "EXPIRED_NONCE" | "UNAUTHORIZED", message, details? }
-
 - GET /me
-  Purpose: Return session user.
-  Response: { id: string, address: string, crLinked?: boolean } (Add fields as needed)
-  Errors: { code: "UNAUTHORIZED", message }
 
 Clash Royale linking
 - POST /cr/link
-  Purpose: Link Clash Royale account to the session user.
-  Request: { tag?: string, token?: string } (One of tag or token required)
-  Response: { ok: true, linked: true, tag?: string }
-  Errors: { code: "INVALID_TAG" | "INVALID_TOKEN" | "UNAUTHORIZED", message, details? }
-
 - GET /cr/me
-  Purpose: Get the linked Clash Royale profile for the current user.
-  Response: CRProfile
-  Errors: { code: "NOT_LINKED" | "UNAUTHORIZED", message }
+- Optional read-only passthroughs: /cr/player, /cr/player/favorites
 
 Profiles
 - GET /profiles?minWager&maxWager&cursor
-  Purpose: List profiles of users open to wagers within the specified range.
-  Query:
-    - minWager?: number
-    - maxWager?: number
-    - cursor?: string (opaque pagination token)
-  Response: { items: UserProfile[], nextCursor?: string }
-  Errors: { code: "BAD_REQUEST", message, details? }
 
 Wagers
 - GET /wagers/live
-  Purpose: List currently live or open wagers.
-  Response: { items: Wager[], updatedAt?: string }
-
 - GET /wagers/history
-  Purpose: List wager history for the authenticated user.
-  Response: { items: GameHistoryItem[], stats?: { wins: number, losses: number, totalProfitEth?: number } }
-
 - POST /wagers/initiate
-  Purpose: Create a new wager intent with an opponent.
-  Request: { opponentId: string, wagerEth: number }
-  Response: { id: string, status: "initiated" | "awaiting-deposits" }
-  Errors: { code: "UNAUTHORIZED" | "VALIDATION_ERROR" | "OPPONENT_UNAVAILABLE", message }
-
 - POST /wagers/:id/deposit
-  Purpose: Notify backend that a deposit transaction hash has been submitted or confirmed on-chain.
-  Request: { txHash: string, amountEth?: number }
-  Response: { ok: true, status: "awaiting-deposits" | "ready" }
-
 - POST /wagers/:id/confirm
-  Purpose: Organizer/admin or automated validator confirms both deposits and moves to ready/in-progress.
-  Request: {}
-  Response: { ok: true, status: "ready" | "in-progress" }
-
 - POST /wagers/:id/cancel
-  Purpose: Cancel a wager prior to completion.
-  Request: { reason?: string }
-  Response: { ok: true, status: "cancelled" }
-
 - POST /wagers/:id/result
-  Purpose: Post match result and distribute escrow accordingly.
-  Request: { result: "challenger" | "opponent" | "draw", proof?: any }
-  Response: { ok: true, status: "completed" }
 
 Escrow helpers
 - GET /escrow/config
-  Purpose: Provide escrow configuration to clients (addresses, supported chainId, min/max wager).
-  Response: {
-    escrowAddress: string,
-    chainId: string | number,
-    minWagerEth?: number,
-    maxWagerEth?: number
-  }
-
 - GET /escrow/:wagerId/status
-  Purpose: Return on-chain and backend view of escrow status for a wager id.
-  Response: {
-    wagerId: string,
-    status: "initiated" | "awaiting-deposits" | "ready" | "in-progress" | "completed" | "cancelled",
-    deposits: { challenger?: { txHash?: string, confirmed?: boolean }, opponent?: { txHash?: string, confirmed?: boolean } }
-  }
 
 Status transitions
-- initiate -> awaiting-deposits (first deposit posted)
-- awaiting-deposits -> ready (both deposits confirmed)
-- ready -> in-progress (match start)
-- in-progress -> completed (result posted and validated)
-- any pre-completion state -> cancelled (cancel flow)
-- Post-completion is terminal.
+- initiate -> awaiting-deposits -> ready -> in-progress -> completed
+- Cancellable prior to completion
 
-Notes
-- All endpoints return JSON and error responses follow {code, message, details?}.
-- Auth may be managed via cookies or Bearer tokens; the frontend service adds Authorization header if configured.
-- The frontend wrappers in src/services/api.js are typed with JSDoc typedefs for the above models.
-- The blockchain client in src/services/blockchain.js assumes a deposit(uint256) payable ABI; update ABI and methods as soon as the contract is finalized.
+## Security Notes
 
-TODO
-- Replace placeholder ABI/methods in blockchain.js once final contract is available.
-- Align all endpoint paths/fields with backend implementation once available.
-- Consider server-sent events or websockets for wager status updates post-deposit confirmation.
+- Never expose private keys or API tokens in the frontend or in repository config.
+- Validate all wallet signatures server-side and enforce nonce expiry.
+- Sanitize and authenticate all backend requests; never trust client-calculated outputs.
+- Treat dry-run outputs as non-authoritative and clearly mark UI elements as simulated.
+
+## TODO
+
+- Replace placeholder ABI and contract method names in blockchain.js once the escrow contract stabilizes.
+- Align all endpoint paths and field names with the backend.
+- Add withdrawal/refund flows when defined by the contract and backend.
+- Consider server-sent events or websockets for live wager updates.
+
