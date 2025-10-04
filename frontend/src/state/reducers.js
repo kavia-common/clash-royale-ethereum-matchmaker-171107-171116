@@ -43,6 +43,7 @@ export const initialState = {
   escrow: {
     config: null,
     statusByWager: {}, // { [wagerId]: status }
+    deposits: {}, // { [wagerId]: { status: 'pending'|'confirmed'|'failed', txHash?: string, error?: string, amountEth?: number } }
     loading: false,
     error: '',
   },
@@ -185,6 +186,48 @@ export function rootReducer(state = initialState, action) {
           statusByWager: {
             ...(state.escrow?.statusByWager || {}),
             [wagerId]: status,
+          },
+        },
+      };
+    }
+    case 'ESCROW_DEPOSIT_PENDING': {
+      const { wagerId, amountEth } = payload || {};
+      if (wagerId == null) return state;
+      return {
+        ...state,
+        escrow: {
+          ...state.escrow,
+          deposits: {
+            ...(state.escrow?.deposits || {}),
+            [wagerId]: { status: 'pending', amountEth },
+          },
+        },
+      };
+    }
+    case 'ESCROW_DEPOSIT_CONFIRMED': {
+      const { wagerId, txHash } = payload || {};
+      if (wagerId == null) return state;
+      return {
+        ...state,
+        escrow: {
+          ...state.escrow,
+          deposits: {
+            ...(state.escrow?.deposits || {}),
+            [wagerId]: { ...(state.escrow?.deposits?.[wagerId] || {}), status: 'confirmed', txHash },
+          },
+        },
+      };
+    }
+    case 'ESCROW_DEPOSIT_FAILED': {
+      const { wagerId, error } = payload || {};
+      if (wagerId == null) return state;
+      return {
+        ...state,
+        escrow: {
+          ...state.escrow,
+          deposits: {
+            ...(state.escrow?.deposits || {}),
+            [wagerId]: { ...(state.escrow?.deposits?.[wagerId] || {}), status: 'failed', error: error || '' },
           },
         },
       };

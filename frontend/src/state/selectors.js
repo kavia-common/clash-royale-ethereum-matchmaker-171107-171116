@@ -44,6 +44,15 @@ export const selectWagersHistory = (state) => state?.wagers?.history || [];
  */
 export const selectEscrowConfig = (state) => state?.escrow?.config || null;
 
+/**
+ * PUBLIC_INTERFACE
+ * selectEscrowDepositByWager
+ * @param {any} state
+ * @param {string|number} wagerId
+ */
+export const selectEscrowDepositByWager = (state, wagerId) =>
+  (state?.escrow?.deposits && state.escrow.deposits[wagerId]) || null;
+
 // Placeholder exports to flesh out later steps
 /**
  * PUBLIC_INTERFACE

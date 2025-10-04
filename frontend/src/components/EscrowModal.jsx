@@ -3,8 +3,9 @@ import { truncateAddress, useEthereumWallet } from '../hooks/useEthereumWallet';
 import apiClient, { apiConfirmDeposit } from '../services/api';
 import { BlockchainClient, IS_DRY_RUN_ESCROW } from '../services/blockchain';
 import { useAppDispatch } from '../state/store';
-import { setEscrowConfig, updateEscrowStatus } from '../state/actions';
+import { setEscrowConfig, updateEscrowStatus, escrowDepositPending, escrowDepositConfirmed, escrowDepositFailed } from '../state/actions';
 import { Spinner, Banner } from './ui';
+import InlineError from './ui/InlineError';
 
 /**
  * Ocean Professional theme tokens mapped to CSS variables
@@ -50,11 +51,15 @@ export default function EscrowModal({
   const { isConnected, address, connect, signer, chainId } = useEthereumWallet();
   const dispatch = useAppDispatch();
 
-  const [wager, setWager] = useState(defaultWager || opponent?.wagerEth || 0.1);
+  // Prefill wager from props with sensible default
+  const initialWager = Number(
+    (defaultWager != null ? defaultWager : (opponent?.wagerEth != null ? opponent.wagerEth : 0.1))
+  );
+  const [wager, setWager] = useState(initialWager);
   const [step, setStep] = useState('review'); // 'review' | 'confirm' | 'pending' | 'success' | 'failure'
   const [error, setError] = useState('');
   const [txHash, setTxHash] = useState('');
-  const [gasEstimate, setGasEstimate] = useState('~0.00042');
+  const [gasEstimate] = useState('~0.00042');
 
   // Additional escrow state
   const [matchId, setMatchId] = useState(null);
@@ -62,13 +67,20 @@ export default function EscrowModal({
   const [explorerUrl, setExplorerUrl] = useState('');
   const [networkWarning, setNetworkWarning] = useState('');
 
+  const minWager = Number(escrowConfig?.min || 0.01);
+  const maxWager = Number(escrowConfig?.max || 5.0);
+
   // Reset when modal reopens
   React.useEffect(() => {
     if (open) {
       setStep('review');
       setError('');
       setTxHash('');
-      setWager(defaultWager || opponent?.wagerEth || 0.1);
+      setExplorerUrl('');
+      const next = Number(
+        (defaultWager != null ? defaultWager : (opponent?.wagerEth != null ? opponent.wagerEth : 0.1))
+      );
+      setWager(Number.isFinite(next) && next > 0 ? next : 0.1);
       setMatchId(null);
       setNetworkWarning('');
       // Fetch escrow config for address/chain details
@@ -106,11 +118,18 @@ export default function EscrowModal({
     }
   }, [chainId, escrowConfig, open]);
 
-  const canProceed = useMemo(() => {
-    if (!wager || Number.isNaN(Number(wager))) return false;
-    if (Number(wager) <= 0) return false;
-    return true;
-  }, [wager]);
+  // Validation
+  const validationError = useMemo(() => {
+    if (wager === '' || wager === null || wager === undefined) return 'Wager is required.';
+    const num = Number(wager);
+    if (!Number.isFinite(num)) return 'Enter a valid number.';
+    if (num <= 0) return 'Wager must be greater than 0.';
+    if (minWager && num < minWager) return `Minimum wager is ${minWager} ETH.`;
+    if (maxWager && num > maxWager) return `Maximum wager is ${maxWager} ETH.`;
+    return '';
+  }, [wager, minWager, maxWager]);
+
+  const canProceed = useMemo(() => validationError === '', [validationError]);
 
   async function beginFlow() {
     setError('');
@@ -142,9 +161,11 @@ export default function EscrowModal({
     try {
       // Backward compatibility: allow caller to fully manage deposit if provided
       if (typeof onDeposit === 'function') {
+        dispatch(escrowDepositPending({ wagerId: matchId ?? 'pending', amountEth: Number(wager) }));
         const res = await onDeposit({ opponentId: opponent?.id, wagerEth: Number(wager) });
         const newHash = res?.txHash || ('0xmockedtx' + Math.random().toString(16).slice(2));
         setTxHash(newHash);
+        dispatch(escrowDepositConfirmed({ wagerId: matchId ?? 'pending', txHash: newHash }));
         setStep('success');
         onComplete?.({ status: 'success', txHash: newHash });
         return;
@@ -169,19 +190,22 @@ export default function EscrowModal({
       // Ensure we have a match/wager id to deposit to; fallback to 0 if backend didn't return
       const id = matchId ?? 0;
 
+      dispatch(escrowDepositPending({ wagerId: id, amountEth: Number(wager) }));
+
       // Send deposit
       const { txHash: hash, receipt, dryRun } = await client.deposit({
         wagerId: id,
         amountEth: Number(wager),
       });
-      setTxHash(hash || receipt?.transactionHash || '');
-      const url = client.formatTxLink(hash || receipt?.transactionHash || '');
+      const finalHash = hash || receipt?.transactionHash || '';
+      setTxHash(finalHash);
+      const url = client.formatTxLink(finalHash);
       if (url) setExplorerUrl(url);
 
       // Notify backend of deposit tx hash (best-effort, skip in dry-run)
       try {
         if (!dryRun) {
-          await apiClient.depositNotify({ id, txHash: hash || receipt?.transactionHash || '', amountEth: Number(wager) });
+          await apiClient.depositNotify({ id, txHash: finalHash, amountEth: Number(wager) });
         }
       } catch (e) {
         // eslint-disable-next-line no-console
@@ -196,27 +220,30 @@ export default function EscrowModal({
       // Optional: confirm wager if backend requires a call after both deposits
       try {
         if (!dryRun) {
-          await apiConfirmDeposit({ matchId: id, txHash: hash || receipt?.transactionHash || '' });
+          await apiConfirmDeposit({ matchId: id, txHash: finalHash });
           await apiClient.confirmWager({ id });
         }
       } catch {
         // Not fatal; some backends auto-confirm when both deposits present
       }
 
+      dispatch(escrowDepositConfirmed({ wagerId: id, txHash: finalHash }));
+
       setStep('success');
-      onComplete?.({ status: 'success', txHash: hash || receipt?.transactionHash || '' });
+      onComplete?.({ status: 'success', txHash: finalHash });
     } catch (e) {
       // Map common blockchain errors to friendly messages
       const msg = e?.message || '';
+      let friendly = msg || 'The transaction failed or was rejected.';
       if (/user denied|user rejected|denied transaction|rejected/i.test(msg)) {
-        setError('Transaction rejected by user.');
+        friendly = 'Transaction rejected by user.';
       } else if (/insufficient funds|out of gas|gas required exceeds/i.test(msg)) {
-        setError('Insufficient funds or gas. Please check your balance and try again.');
+        friendly = 'Insufficient funds or gas. Please check your balance and try again.';
       } else if (/wrong network|chain id/i.test(msg)) {
-        setError('Wrong network selected. Please switch and try again.');
-      } else {
-        setError(msg || 'The transaction failed or was rejected.');
+        friendly = 'Wrong network selected. Please switch and try again.';
       }
+      setError(friendly);
+      dispatch(escrowDepositFailed({ wagerId: matchId ?? 'pending', error: friendly }));
       setStep('failure');
       onComplete?.({ status: 'failure' });
     }
@@ -323,15 +350,22 @@ export default function EscrowModal({
             <input
               id="wager"
               type="number"
-              min="0.01"
+              min={minWager}
+              max={maxWager}
               step="0.01"
               value={wager}
               onChange={(e) => setWager(e.target.value)}
+              aria-describedby="wager-help wager-error"
               style={styles.wagerInput}
             />
-            <div style={styles.wagerHelp}>
-              Estimated gas: <strong>{gasEstimate}</strong>
+            <div id="wager-help" style={styles.wagerHelp}>
+              Range: {minWager} - {maxWager} ETH · Estimated gas: <strong>{gasEstimate}</strong>
             </div>
+            {validationError && (
+              <InlineError id="wager-error" live>
+                {validationError}
+              </InlineError>
+            )}
           </div>
 
           {!isConnected && (

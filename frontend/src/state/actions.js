@@ -95,6 +95,42 @@ export const updateEscrowStatus = (payload) => ({
 
 /**
  * PUBLIC_INTERFACE
+ * escrowDepositPending
+ * Dispatch when a deposit transaction is submitted and waiting for confirmations.
+ * @param {{wagerId: string|number, amountEth: number}} payload
+ */
+export const escrowDepositPending = (payload) => ({
+  /** This is a public function. */
+  type: 'ESCROW_DEPOSIT_PENDING',
+  payload,
+});
+
+/**
+ * PUBLIC_INTERFACE
+ * escrowDepositConfirmed
+ * Dispatch when a deposit is confirmed.
+ * @param {{wagerId: string|number, txHash: string}} payload
+ */
+export const escrowDepositConfirmed = (payload) => ({
+  /** This is a public function. */
+  type: 'ESCROW_DEPOSIT_CONFIRMED',
+  payload,
+});
+
+/**
+ * PUBLIC_INTERFACE
+ * escrowDepositFailed
+ * Dispatch when a deposit fails.
+ * @param {{wagerId: string|number, error: string}} payload
+ */
+export const escrowDepositFailed = (payload) => ({
+  /** This is a public function. */
+  type: 'ESCROW_DEPOSIT_FAILED',
+  payload,
+});
+
+/**
+ * PUBLIC_INTERFACE
  * setCrAccountData
  * Set the linked Clash Royale account/profile data returned by /cr/me
  * @param {any} data
