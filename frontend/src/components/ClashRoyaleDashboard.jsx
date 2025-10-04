@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiGetCRPlayer, apiGetCRFavoriteCards } from '../services/api';
 import { useAppSelector } from '../state/store';
-import { selectCrAccount } from '../state/selectors';
-import { Spinner, Banner } from './ui';
+import { selectCrAccount, selectCrAccountError, selectCrAccountLoading } from '../state/selectors';
+import { Spinner, Banner, Skeleton } from './ui';
 
 /**
  * Ocean Professional theme tokens for Clash Royale dashboard mapped to CSS variables
@@ -42,6 +42,8 @@ export default function ClashRoyaleDashboard({ open, onClose, playerTag, accessT
   const [error, setError] = useState('');
 
   const crAccount = useAppSelector(selectCrAccount);
+  const crLoadingGlobal = useAppSelector(selectCrAccountLoading);
+  const crErrorGlobal = useAppSelector(selectCrAccountError);
 
   const normalizedTag = useMemo(() => {
     const sourceTag = playerTag || crAccount?.tag || crAccount?.player?.tag;
@@ -111,8 +113,10 @@ export default function ClashRoyaleDashboard({ open, onClose, playerTag, accessT
         </p>
 
         {/* Status */}
-        {error && <Banner type="error">{error}</Banner>}
-        {loading && (
+        {(error || (!playerTag && crErrorGlobal)) && (
+          <Banner type="error">{error || crErrorGlobal}</Banner>
+        )}
+        {(loading || (!playerTag && crLoadingGlobal)) && (
           <div style={styles.loadingRow}>
             <Spinner srText="Loading player stats" />
             <span style={styles.loadingText}>Loading player stats…</span>
@@ -120,6 +124,57 @@ export default function ClashRoyaleDashboard({ open, onClose, playerTag, accessT
         )}
 
         {/* Content */}
+        {((!loading && player) || (!player && !loading)) && (
+          <></>
+        )}
+
+        {loading && (
+          <div style={styles.grid} aria-hidden="true">
+            <section aria-label="Player summary" style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>Player</h3>
+                <span style={styles.badge}>Profile</span>
+              </div>
+              <div style={styles.playerRow}>
+                <Skeleton variant="circle" width={54} height={54} />
+                <div style={styles.playerMeta}>
+                  <Skeleton variant="text" width={180} height={16} />
+                  <Skeleton variant="text" width={120} height={12} style={{ marginTop: 6 }} />
+                </div>
+              </div>
+              <div style={styles.statsRow}>
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} style={styles.statBox}>
+                    <Skeleton variant="text" width="60%" height={16} />
+                    <Skeleton variant="text" width="40%" height={12} style={{ marginTop: 6 }} />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section aria-label="Clan" style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>Clan</h3>
+                <span style={styles.badge}>Social</span>
+              </div>
+              <Skeleton variant="text" width="70%" height={16} />
+              <Skeleton variant="text" width="40%" height={12} />
+            </section>
+
+            <section aria-label="Favorite cards" style={styles.card}>
+              <div style={styles.cardHeader}>
+                <h3 style={styles.cardTitle}>Favorites</h3>
+                <span style={styles.badge}>Cards</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8 }}>
+                {[...Array(8)].map((_, i) => (
+                  <Skeleton key={i} variant="rect" height={28} />
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
+
         {!loading && player && (
           <div style={styles.grid}>
             <section aria-label="Player summary" style={styles.card}>

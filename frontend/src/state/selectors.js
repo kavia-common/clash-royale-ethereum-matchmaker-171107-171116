@@ -77,6 +77,19 @@ export const selectCrAccountError = (state) => state?.crAccount?.error || '';
 
 /**
  * PUBLIC_INTERFACE
+ * selectCrAccountLinked
+ * Returns true if a Clash Royale account is linked (data available).
+ * @param {any} state
+ */
+export const selectCrAccountLinked = (state) => {
+  const data = state?.crAccount?.data;
+  if (!data) return false;
+  // Accept either flat { tag, name } or nested { player: { tag } }
+  return Boolean(data?.tag || data?.player?.tag);
+};
+
+/**
+ * PUBLIC_INTERFACE
  * selectWagerFilter
  * @param {any} state
  */
