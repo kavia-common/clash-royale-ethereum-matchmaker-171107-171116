@@ -1,11 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
 import { useAppDispatch } from '../state/store';
 import { setAuthWallet } from '../state/actions';
+import apiClient from '../services/api';
 
 /**
  * WalletStatus
  * Displays connect/disconnect actions and status with Ocean Professional styling.
+ * Provides SIWE-style verification to establish a session with the backend.
  */
 // PUBLIC_INTERFACE
 export default function WalletStatus() {
@@ -20,19 +22,143 @@ export default function WalletStatus() {
     disconnect,
     theme,
     chainId,
+    signer,
+    provider,
+    networkName,
   } = useEthereumWallet();
+
+  // Local UI state to represent verification status and transient messages
+  const [verified, setVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   // Sync wallet state into global store's authSession slice (no-op if provider isn't mounted)
   useEffect(() => {
-    dispatch(setAuthWallet({ address, chainId, isConnected, connecting, error }));
-  }, [dispatch, address, chainId, isConnected, connecting, error]);
+    dispatch(
+      setAuthWallet({
+        address,
+        chainId,
+        isConnected,
+        connecting,
+        error: error || localError,
+        verified,
+        networkName: networkName || '',
+      })
+    );
+  }, [dispatch, address, chainId, isConnected, connecting, error, localError, verified, networkName]);
+
+  // Reset verified state if address changes or disconnects
+  useEffect(() => {
+    if (!isConnected) {
+      setVerified(false);
+      setVerifying(false);
+      setLocalError('');
+    }
+  }, [isConnected, address]);
+
+  const domain = useMemo(() => {
+    if (typeof window === 'undefined') return 'localhost';
+    try {
+      return window.location.host || 'localhost';
+    } catch {
+      return 'localhost';
+    }
+  }, []);
+
+  const origin = useMemo(() => {
+    if (typeof window === 'undefined') return 'http://localhost';
+    try {
+      return window.location.origin || 'http://localhost';
+    } catch {
+      return 'http://localhost';
+    }
+  }, []);
+
+  // PUBLIC_INTERFACE
+  const handleVerify = useCallback(async () => {
+    /** Trigger SIWE-style flow: nonce -> sign -> verify */
+    setLocalError('');
+    if (!isConnected || !address) {
+      setLocalError('Connect your wallet first.');
+      return;
+    }
+    if (!signer) {
+      setLocalError('No signer available. Please reconnect your wallet.');
+      return;
+    }
+    setVerifying(true);
+    try {
+      const nonceResp = await apiClient.getWalletNonce(address);
+      const nonce = nonceResp?.nonce || String(Math.floor(Math.random() * 1e9));
+
+      // Compute decimal chain id (supports hex string like 0x1)
+      let chainNumeric = '';
+      if (chainId) {
+        chainNumeric =
+          typeof chainId === 'string' && chainId.startsWith('0x')
+            ? String(parseInt(chainId, 16))
+            : String(chainId);
+      }
+
+      const issuedAt = new Date().toISOString();
+      // Minimal SIWE-like message. We keep it simple for signMessage but include the nonce and domain.
+      const message = [
+        'Sign-In With Ethereum',
+        '',
+        `Domain: ${domain}`,
+        `Address: ${address}`,
+        `Statement: Authenticate to CR Matchmaker`,
+        `URI: ${origin}`,
+        'Version: 1',
+        chainNumeric ? `Chain ID: ${chainNumeric}` : undefined,
+        `Nonce: ${nonce}`,
+        `Issued At: ${issuedAt}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      // Sign with the current signer
+      const signature = await signer.signMessage(message);
+
+      // Verify via backend (assumed cookie-based session)
+      const res = await apiClient.verifyWalletSignature({ address, signature });
+      if (res?.ok || res?.user) {
+        setVerified(true);
+      } else {
+        setLocalError('Verification failed. Please try again.');
+      }
+    } catch (e) {
+      const msg = e?.message || 'Verification failed.';
+      // Map some common issues to friendly messages
+      if (msg.toLowerCase().includes('user denied') || msg.toLowerCase().includes('rejected')) {
+        setLocalError('Signature was rejected.');
+      } else {
+        setLocalError(msg);
+      }
+    } finally {
+      setVerifying(false);
+    }
+  }, [address, chainId, domain, origin, isConnected, signer]);
+
+  const wrongNetworkHint = useMemo(() => {
+    const expected = process.env.REACT_APP_CHAIN_ID;
+    if (!expected || !chainId) return '';
+    const normalize = (v) => {
+      if (typeof v === 'string' && v.startsWith('0x')) return String(parseInt(v, 16));
+      return String(v);
+    };
+    return normalize(expected) !== normalize(chainId) ? 'Wrong network selected.' : '';
+  }, [chainId]);
+
+  const connectDisabled = connecting;
+  const verifyDisabled = verifying || !isConnected || verified;
 
   return (
     <div style={styles.container(theme)} aria-live="polite">
       <div style={styles.statusRow}>
         {isConnected ? (
           <span style={styles.connectedBadge(theme)} title={address}>
-            ● Connected
+            ● Connected{verified ? ' · Verified' : ' · Unverified'}
           </span>
         ) : (
           <span style={styles.disconnectedBadge}>○ Disconnected</span>
@@ -41,16 +167,61 @@ export default function WalletStatus() {
         <span style={styles.address(theme)} data-testid="wallet-address">
           {isConnected && address ? truncateAddress(address) : ''}
         </span>
+        {networkName ? (
+          <span aria-label="network name" style={{ color: '#6B7280', fontSize: 12 }}>
+            {networkName}
+          </span>
+        ) : null}
       </div>
 
-      {error && (
+      {(error || localError || wrongNetworkHint) && (
         <div role="alert" style={styles.error(theme)}>
-          {error}
+          {error || localError || wrongNetworkHint}
         </div>
       )}
 
-      {/* Hide direct wallet action buttons to keep connect logic behind the scenes */}
-      <div style={styles.actions} aria-hidden="true" hidden />
+      <div style={styles.actions}>
+        {!isConnected ? (
+          <button
+            type="button"
+            onClick={connect}
+            disabled={connectDisabled}
+            style={{
+              ...styles.primaryButton(theme),
+              ...(connectDisabled ? styles.buttonDisabled : {}),
+            }}
+            aria-label="Connect Ethereum Wallet"
+          >
+            Connect Ethereum Wallet
+          </button>
+        ) : (
+          <>
+            {!verified && (
+              <button
+                type="button"
+                onClick={handleVerify}
+                disabled={verifyDisabled}
+                style={{
+                  ...styles.secondaryButton,
+                  ...(verifyDisabled ? styles.buttonDisabled : {}),
+                }}
+                aria-label="Verify Wallet Signature"
+                title="Verify to establish a session"
+              >
+                Verify
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={disconnect}
+              style={styles.secondaryButton}
+              aria-label="Disconnect Ethereum Wallet"
+            >
+              Disconnect Ethereum Wallet
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

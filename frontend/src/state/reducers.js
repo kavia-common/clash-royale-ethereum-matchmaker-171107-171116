@@ -7,7 +7,15 @@ const sliceDefault = (data) => ({
 export const initialState = {
   authSession: {
     // Wallet/auth status and future session token, user info, etc.
-    wallet: { address: '', chainId: '', isConnected: false, connecting: false, error: '' },
+    wallet: {
+      address: '',
+      chainId: '',
+      isConnected: false,
+      connecting: false,
+      error: '',
+      verified: false,
+      networkName: '',
+    },
     user: null,
     loading: false,
     error: '',
@@ -67,6 +75,8 @@ export function rootReducer(state = initialState, action) {
         isConnected: !!payload?.isConnected,
         connecting: !!payload?.connecting,
         error: payload?.error || '',
+        verified: !!payload?.verified,
+        networkName: payload?.networkName || '',
       };
       return {
         ...state,

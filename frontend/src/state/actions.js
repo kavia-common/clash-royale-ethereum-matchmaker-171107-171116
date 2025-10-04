@@ -6,7 +6,7 @@
  * PUBLIC_INTERFACE
  * setAuthWallet
  * Update wallet/auth state
- * @param {{address?: string, chainId?: string, isConnected?: boolean, connecting?: boolean, error?: string}} payload
+ * @param {{address?: string, chainId?: string, isConnected?: boolean, connecting?: boolean, error?: string, verified?: boolean, networkName?: string}} payload
  */
 export const setAuthWallet = (payload) => ({
   /** This is a public function. */

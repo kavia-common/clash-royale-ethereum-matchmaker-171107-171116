@@ -35,6 +35,7 @@ export function useEthereumWallet() {
   const [chainId, setChainId] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
+  const [networkName, setNetworkName] = useState('');
   const providerRef = useRef(null);
   const signerRef = useRef(null);
   const initRan = useRef(false);
@@ -59,6 +60,11 @@ export function useEthereumWallet() {
       const web3Provider = new ethers.providers.Web3Provider(eth, 'any');
       providerRef.current = web3Provider;
       signerRef.current = web3Provider.getSigner();
+      // Prime network name (best-effort)
+      web3Provider
+        .getNetwork()
+        .then((net) => setNetworkName(net?.name || ''))
+        .catch(() => setNetworkName(''));
     }
     return providerRef.current;
   }, [detectProvider]);
@@ -162,12 +168,27 @@ export function useEthereumWallet() {
       // These are external provider events; allow them regardless of init flag.
       if (accounts && accounts.length > 0) {
         setAddress(ethers.utils.getAddress(accounts[0]));
+        // refresh signer reference (defensive)
+        if (providerRef.current) {
+          signerRef.current = providerRef.current.getSigner();
+        }
       } else {
         setAddress(''); // explicit disconnect
+        setNetworkName('');
+        signerRef.current = null;
       }
     };
     const handleChainChanged = (id) => {
       setChainId(id);
+      // Refresh network name from provider if possible
+      const p = providerRef.current;
+      if (p?.getNetwork) {
+        p.getNetwork()
+          .then((net) => setNetworkName(net?.name || ''))
+          .catch(() => setNetworkName(''));
+      } else {
+        setNetworkName('');
+      }
     };
 
     eth.on?.('accountsChanged', handleAccountsChanged);
@@ -192,6 +213,15 @@ export function useEthereumWallet() {
               guardedSetAddress(ethers.utils.getAddress(accounts[0]));
             }
             if (id) guardedSetChainId(id);
+            const p = providerRef.current;
+            if (p?.getNetwork) {
+              try {
+                const net = await p.getNetwork();
+                setNetworkName(net?.name || '');
+              } catch {
+                setNetworkName('');
+              }
+            }
           }
         } catch {
           // silent
@@ -221,5 +251,6 @@ export function useEthereumWallet() {
     provider,
     signer,
     theme,
+    networkName,
   };
 }
