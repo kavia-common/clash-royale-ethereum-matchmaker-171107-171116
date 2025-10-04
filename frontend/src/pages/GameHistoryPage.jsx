@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GameHistoryDashboard from '../components/GameHistoryDashboard';
 import { apiGetLiveWagers, apiGetGameHistory } from '../services/api';
@@ -52,6 +52,22 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
     return () => { canceled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Periodic refresh for live and history
+  useEffect(() => {
+    let canceled = false;
+    const interval = setInterval(async () => {
+      try {
+        const [live, hist] = await Promise.allSettled([apiGetLiveWagers(), apiGetGameHistory()]);
+        if (canceled) return;
+        if (live.status === 'fulfilled') setLiveData(live.value);
+        if (hist.status === 'fulfilled') setHistoryData(hist.value);
+      } catch {
+        // ignore periodic errors
+      }
+    }, 15000);
+    return () => { canceled = true; clearInterval(interval); };
+  }, []);
+
   // Provide a fetcher that returns the latest historyData or fetches fresh
   const historyFetcher = async () => {
     if (historyData) return historyData;
@@ -59,6 +75,19 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
     setHistoryData(res);
     return res;
   };
+
+  // Map API live wagers to events shape used by the LiveFeedPanel
+  const liveEvents = useMemo(() => {
+    const items = Array.isArray(liveData) ? liveData : (liveData?.items || []);
+    return (items || []).map((w) => ({
+      id: String(w.id || w.wagerId || Math.random().toString(36).slice(2)),
+      user: w.players?.challenger || 'Unknown',
+      opponent: w.players?.opponent || 'Unknown',
+      wagerEth: Number(w.amounts?.totalEth ?? (w.amount || 0.0)) || 0,
+      status: mapWagerStatusToLive(w.status || 'pending-deposits'),
+      timestamp: Date.parse(w.updatedAt || w.createdAt || new Date().toISOString()),
+    }));
+  }, [liveData]);
 
   return (
     <div style={styles.pageWrap}>
@@ -115,7 +144,7 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
       {/* Top row: Live Stream (left) + Place Bet (right) */}
       <section style={styles.section}>
         <div style={styles.topRow}>
-          <LiveFeedPanel />
+          <LiveFeedPanel events={liveEvents} />
           <PlaceBetPanel />
         </div>
       </section>
@@ -143,10 +172,17 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
   );
 }
 
-function LiveFeedPanel() {
-  const [events, setEvents] = useState(() => seedEvents());
-  // Mock streaming: push a new event every 6s and trim to 12 items
+function LiveFeedPanel({ events: externalEvents }) {
+  const [events, setEvents] = useState(() => externalEvents && externalEvents.length ? externalEvents : seedEvents());
+  // If external events change, sync them (keeps mock ticker if none)
   useEffect(() => {
+    if (externalEvents && externalEvents.length) {
+      setEvents(externalEvents.slice(0, 12));
+    }
+  }, [externalEvents]);
+  // Mock streaming: push a new event every 6s and trim to 12 items when no external events
+  useEffect(() => {
+    if (externalEvents && externalEvents.length) return;
     const id = setInterval(() => {
       setEvents(prev => {
         const next = [generateEvent(), ...prev].slice(0, 12);
@@ -154,7 +190,7 @@ function LiveFeedPanel() {
       });
     }, 6000);
     return () => clearInterval(id);
-  }, []);
+  }, [externalEvents]);
 
   return (
     <section aria-label="Live feed of ongoing games and wagers" style={{ ...styles.card, ...styles.liveCard }}>
@@ -227,6 +263,16 @@ function StatusPill({ status }) {
       {p.text}
     </span>
   );
+}
+
+function mapWagerStatusToLive(s) {
+  const x = String(s || '').toLowerCase();
+  if (x.includes('awaiting') || x.includes('deposit')) return 'pending-deposits';
+  if (x.includes('progress')) return 'in-progress';
+  if (x.includes('settle')) return 'settling';
+  if (x.includes('complete') || x.includes('done')) return 'complete';
+  if (x.includes('cancel')) return 'cancelled';
+  return 'pending-deposits';
 }
 
 function PlaceBetPanel() {

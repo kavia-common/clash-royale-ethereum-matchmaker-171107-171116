@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ethers } from 'ethers';
 import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
+import { BlockchainClient } from '../services/blockchain';
+import apiClient from '../services/api';
 
 /**
  * Ocean Professional theme tokens for the unified escrow/deposits panel
@@ -31,10 +33,11 @@ const theme = {
  * - onDeposit: optional async function({ amountEth }) -> { txHash }, performs the actual deposit via ethers/contract.
  *   If not provided, a mocked deposit flow is used.
  * - onWithdraw: optional async function() -> void, performs a withdraw flow if supported.
+ * - wagerId: optional string|number - if provided, use escrow API + chain deposit for that wager
  */
-export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdraw }) {
+export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdraw, wagerId }) {
   /** This is a public function. */
-  const { isConnected, address, connect, signer } = useEthereumWallet();
+  const { isConnected, address, connect, signer, chainId } = useEthereumWallet();
 
   // Balance state
   const [balanceEth, setBalanceEth] = useState('');
@@ -45,6 +48,8 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [lastTx, setLastTx] = useState('');
+  const [explorerUrl, setExplorerUrl] = useState('');
+  const [networkWarning, setNetworkWarning] = useState('');
 
   // Withdraw
   const [withdrawing, setWithdrawing] = useState(false);
@@ -61,6 +66,32 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
   );
 
   const items = Array.isArray(pendingRequests) ? pendingRequests : mocked;
+
+  // Load escrow config
+  const [escrowConfig, setEscrowConfigLocal] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cfg = await apiClient.getEscrowConfig();
+        if (!cancelled) setEscrowConfigLocal(cfg || null);
+      } catch {
+        // silent
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Network warning if config and chainId differ
+  useEffect(() => {
+    if (!escrowConfig?.chainId || !chainId) {
+      setNetworkWarning('');
+      return;
+    }
+    const exp = normalizeChainId(escrowConfig.chainId);
+    const cur = normalizeChainId(chainId);
+    setNetworkWarning(exp && cur && exp !== cur ? 'Wrong network selected.' : '');
+  }, [escrowConfig, chainId]);
 
   // Fetch balance when connected
   useEffect(() => {
@@ -96,10 +127,42 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
     setSendError('');
     setSending(true);
     setLastTx('');
+    setExplorerUrl('');
     try {
       if (typeof onDeposit === 'function') {
         const res = await onDeposit({ amountEth: Number(amount) });
         setLastTx(res?.txHash || '');
+      } else if (wagerId != null && signer) {
+        // Chain + API flow when a wager id is provided
+        const client = new BlockchainClient({
+          signer,
+          escrowAddress: escrowConfig?.address,
+          escrowAbi: escrowConfig?.abi || undefined,
+        });
+
+        // Check network
+        const expected = normalizeChainId(escrowConfig?.chainId || process.env.REACT_APP_CHAIN_ID);
+        const current = normalizeChainId(chainId);
+        if (expected && current && expected !== current) {
+          setSendError('Wrong network selected. Please switch and try again.');
+          return;
+        }
+
+        const { txHash, receipt } = await client.deposit({
+          wagerId,
+          amountEth: Number(amount),
+        });
+        const hash = txHash || receipt?.transactionHash || '';
+        setLastTx(hash);
+        const url = client.formatTxLink(hash);
+        if (url) setExplorerUrl(url);
+
+        // Notify backend
+        try {
+          await apiClient.depositNotify({ id: wagerId, txHash: hash, amountEth: Number(amount) });
+        } catch {
+          // non-fatal
+        }
       } else {
         // Fallback: mock a tx hash after slight delay
         await new Promise((r) => setTimeout(r, 1000));
@@ -107,7 +170,14 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
         setLastTx(mockHash);
       }
     } catch (e) {
-      setSendError(e?.message || 'Deposit failed or was rejected.');
+      const msg = e?.message || '';
+      if (/user denied|user rejected|denied|rejected/i.test(msg)) {
+        setSendError('Transaction rejected by user.');
+      } else if (/insufficient funds|out of gas|gas required/i.test(msg)) {
+        setSendError('Insufficient funds or gas.');
+      } else {
+        setSendError(msg || 'Deposit failed or was rejected.');
+      }
     } finally {
       setSending(false);
     }
@@ -184,6 +254,7 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
               </button>
             )}
           </div>
+          {networkWarning && <div role="alert" style={styles.bannerError}>{networkWarning}</div>}
           {balanceError && <div role="alert" style={styles.bannerError}>{balanceError}</div>}
           {withdrawError && <div role="alert" style={styles.bannerError}>{withdrawError}</div>}
           {withdrawOk && <div role="status" style={styles.bannerSuccess}>Withdraw initiated</div>}
@@ -217,6 +288,11 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
               <div style={styles.bannerSuccess}>
                 <span aria-hidden="true">✅</span>&nbsp;Submitted. Tx:&nbsp;
                 <code style={styles.txHash}>{lastTx.slice(0, 22)}…</code>
+                {explorerUrl ? (
+                  <>
+                    {' '}<a href={explorerUrl} target="_blank" rel="noreferrer" style={{ color: '#065F46', fontWeight: 800 }}>View on Explorer</a>
+                  </>
+                ) : null}
               </div>
             )}
           </div>
@@ -597,3 +673,10 @@ const styles = {
     boxShadow: '0 4px 12px rgba(16,185,129,0.35)',
   },
 };
+
+function normalizeChainId(id) {
+  if (!id) return '';
+  const s = String(id);
+  if (s.startsWith('0x')) return String(parseInt(s, 16));
+  return s;
+}

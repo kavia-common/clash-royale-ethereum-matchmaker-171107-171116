@@ -1,5 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { truncateAddress, useEthereumWallet } from '../hooks/useEthereumWallet';
+import apiClient, { apiConfirmDeposit } from '../services/api';
+import { BlockchainClient } from '../services/blockchain';
+import { useAppDispatch } from '../state/store';
+import { setEscrowConfig, updateEscrowStatus } from '../state/actions';
 
 /**
  * Ocean Professional theme tokens
@@ -42,12 +46,20 @@ export default function EscrowModal({
   onComplete,
 }) {
   /** This is a public function. */
-  const { isConnected, address, connect, theme: walletTheme } = useEthereumWallet();
+  const { isConnected, address, connect, signer, chainId } = useEthereumWallet();
+  const dispatch = useAppDispatch();
+
   const [wager, setWager] = useState(defaultWager || opponent?.wagerEth || 0.1);
   const [step, setStep] = useState('review'); // 'review' | 'confirm' | 'pending' | 'success' | 'failure'
   const [error, setError] = useState('');
   const [txHash, setTxHash] = useState('');
   const [gasEstimate, setGasEstimate] = useState('~0.00042');
+
+  // Additional escrow state
+  const [matchId, setMatchId] = useState(null);
+  const [escrowConfig, setLocalEscrowConfig] = useState(null);
+  const [explorerUrl, setExplorerUrl] = useState('');
+  const [networkWarning, setNetworkWarning] = useState('');
 
   // Reset when modal reopens
   React.useEffect(() => {
@@ -56,8 +68,42 @@ export default function EscrowModal({
       setError('');
       setTxHash('');
       setWager(defaultWager || opponent?.wagerEth || 0.1);
+      setMatchId(null);
+      setNetworkWarning('');
+      // Fetch escrow config for address/chain details
+      (async () => {
+        try {
+          const cfg = await apiClient.getEscrowConfig();
+          setLocalEscrowConfig(cfg || null);
+          dispatch(setEscrowConfig(cfg || null));
+          // Network warning if applicable
+          const expected = normalizeChainId(cfg?.chainId || process.env.REACT_APP_CHAIN_ID);
+          const current = normalizeChainId(chainId);
+          if (expected && current && expected !== current) {
+            setNetworkWarning('Wrong network selected. Please switch to the required network.');
+          } else {
+            setNetworkWarning('');
+          }
+        } catch (e) {
+          // Non-fatal: allow user to continue; deposit will fail if address missing
+          // eslint-disable-next-line no-console
+          console.warn('Failed to load escrow config', e);
+        }
+      })();
     }
-  }, [open, defaultWager, opponent]);
+  }, [open, defaultWager, opponent, chainId, dispatch]);
+
+  // Update network warning if chain changes while modal is open
+  React.useEffect(() => {
+    const expected = normalizeChainId(escrowConfig?.chainId || process.env.REACT_APP_CHAIN_ID);
+    const current = normalizeChainId(chainId);
+    if (!open) return;
+    if (expected && current && expected !== current) {
+      setNetworkWarning('Wrong network selected. Please switch to the required network.');
+    } else {
+      setNetworkWarning('');
+    }
+  }, [chainId, escrowConfig, open]);
 
   const canProceed = useMemo(() => {
     if (!wager || Number.isNaN(Number(wager))) return false;
@@ -65,23 +111,27 @@ export default function EscrowModal({
     return true;
   }, [wager]);
 
-  const beginFlow = async () => {
+  async function beginFlow() {
     setError('');
     if (!canProceed) return;
     try {
-      // Placeholder for backend call to create match intent
+      // Prefer injected handler for backward compatibility (unit tests rely on this)
       if (typeof onInitiate === 'function') {
-        await onInitiate({ opponentId: opponent?.id, wagerEth: Number(wager) });
+        const res = await onInitiate({ opponentId: opponent?.id, wagerEth: Number(wager) });
+        const id = res?.id ?? res?.wagerId ?? res?.matchId ?? null;
+        if (id != null) setMatchId(id);
       } else {
-        await new Promise((r) => setTimeout(r, 300));
+        const res = await apiClient.initiateWager({ opponentId: opponent?.id, wagerEth: Number(wager) });
+        const id = res?.id ?? res?.wagerId ?? res?.matchId ?? null;
+        setMatchId(id);
       }
       setStep('confirm');
     } catch (e) {
       setError(e?.message || 'Failed to initiate match. Please try again.');
     }
-  };
+  }
 
-  const confirmDeposit = async () => {
+  async function confirmDeposit() {
     setError('');
     if (!isConnected) {
       setError('Wallet not connected. Please connect your wallet.');
@@ -89,33 +139,115 @@ export default function EscrowModal({
     }
     setStep('pending');
     try {
-      // Perform the deposit via injected handler (ProfileList will use ethers.js)
+      // Backward compatibility: allow caller to fully manage deposit if provided
       if (typeof onDeposit === 'function') {
         const res = await onDeposit({ opponentId: opponent?.id, wagerEth: Number(wager) });
-        const newHash = res?.txHash || '0xmockedtx' + Math.random().toString(16).slice(2);
+        const newHash = res?.txHash || ('0xmockedtx' + Math.random().toString(16).slice(2));
         setTxHash(newHash);
         setStep('success');
         onComplete?.({ status: 'success', txHash: newHash });
         return;
       }
-      // Fallback stub
-      await new Promise((r) => setTimeout(r, 1500));
-      const newHash = '0xmockedtx' + Math.random().toString(16).slice(2);
-      setTxHash(newHash);
+
+      // Services-based flow
+      if (!signer) throw new Error('No signer available. Please reconnect your wallet.');
+      const client = new BlockchainClient({
+        signer,
+        escrowAddress: escrowConfig?.address,
+        escrowAbi: escrowConfig?.abi || undefined,
+      });
+
+      // Validate network if config provides one
+      const expected = normalizeChainId(escrowConfig?.chainId || process.env.REACT_APP_CHAIN_ID);
+      const current = normalizeChainId(chainId);
+      if (expected && current && expected !== current) {
+        setNetworkWarning('Wrong network selected. Please switch to the required network.');
+        throw new Error('Wrong network selected.');
+      }
+
+      // Ensure we have a match/wager id to deposit to; fallback to 0 if backend didn't return
+      const id = matchId ?? 0;
+
+      // Send deposit
+      const { txHash: hash, receipt } = await client.deposit({
+        wagerId: id,
+        amountEth: Number(wager),
+      });
+      setTxHash(hash || receipt?.transactionHash || '');
+      const url = client.formatTxLink(hash || receipt?.transactionHash || '');
+      if (url) setExplorerUrl(url);
+
+      // Notify backend of deposit tx hash (best-effort)
+      try {
+        await apiClient.depositNotify({ id, txHash: hash || receipt?.transactionHash || '', amountEth: Number(wager) });
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('Deposit notify failed, will continue to poll status', e);
+      }
+
+      // Poll escrow status to reflect readiness
+      await pollEscrowStatus({ id, attempts: 6, delayMs: 2000 });
+
+      // Optional: confirm wager if backend requires a call after both deposits
+      try {
+        await apiConfirmDeposit({ matchId: id, txHash: hash || receipt?.transactionHash || '' });
+        await apiClient.confirmWager({ id });
+      } catch {
+        // Not fatal; some backends auto-confirm when both deposits present
+      }
+
       setStep('success');
-      onComplete?.({ status: 'success', txHash: newHash });
+      onComplete?.({ status: 'success', txHash: hash || receipt?.transactionHash || '' });
     } catch (e) {
+      // Map common blockchain errors to friendly messages
+      const msg = e?.message || '';
+      if (/user denied|user rejected|denied transaction|rejected/i.test(msg)) {
+        setError('Transaction rejected by user.');
+      } else if (/insufficient funds|out of gas|gas required exceeds/i.test(msg)) {
+        setError('Insufficient funds or gas. Please check your balance and try again.');
+      } else if (/wrong network|chain id/i.test(msg)) {
+        setError('Wrong network selected. Please switch and try again.');
+      } else {
+        setError(msg || 'The transaction failed or was rejected.');
+      }
       setStep('failure');
-      setError(e?.message || 'The transaction failed or was rejected.');
       onComplete?.({ status: 'failure' });
     }
-  };
+  }
 
-  const restart = () => {
+  function restart() {
     setStep('review');
     setError('');
     setTxHash('');
-  };
+    setExplorerUrl('');
+  }
+
+  async function pollEscrowStatus({ id, attempts = 5, delayMs = 1500 }) {
+    let tries = 0;
+    while (tries < attempts) {
+      tries += 1;
+      try {
+        const status = await apiClient.getEscrowStatus({ wagerId: id });
+        if (status) {
+          dispatch(updateEscrowStatus({ wagerId: id, status }));
+          const s = status?.state || status?.status || '';
+          // Heuristic: mark ready when backend says ready/in-progress/deposited
+          if (['ready', 'in-progress', 'deposited', 'awaiting-opponent'].includes(String(s))) {
+            return;
+          }
+        }
+      } catch {
+        // continue retries
+      }
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+
+  const wrongNetworkBanner = networkWarning ? (
+    <div role="alert" style={{ ...styles.warning, background: '#FEF3C7', color: '#92400E', borderColor: '#F59E0B66' }}>
+      {networkWarning}
+    </div>
+  ) : null;
 
   if (!open) return null;
 
@@ -194,6 +326,7 @@ export default function EscrowModal({
               You must connect your Ethereum wallet to continue.
             </div>
           )}
+          {wrongNetworkBanner}
 
           {error && (
             <div role="alert" style={styles.errorBanner}>
@@ -201,7 +334,11 @@ export default function EscrowModal({
             </div>
           )}
 
-          <StateIndicator step={step} txHash={txHash} />
+          <StateIndicator
+            step={step}
+            txHash={txHash}
+            explorerUrl={explorerUrl}
+          />
 
           <div style={styles.actions}>
             <button type="button" onClick={onClose} style={styles.secondaryButton}>
@@ -276,7 +413,7 @@ export default function EscrowModal({
   );
 }
 
-function StateIndicator({ step, txHash }) {
+function StateIndicator({ step, txHash, explorerUrl }) {
   if (step === 'pending') {
     return (
       <div style={styles.stateRow}>
@@ -294,7 +431,15 @@ function StateIndicator({ step, txHash }) {
         <div style={styles.stateText}>
           Deposit confirmed. Tx:{' '}
           {txHash ? (
-            <code style={styles.txHash}>{txHash.slice(0, 18)}…</code>
+            <>
+              <code style={styles.txHash}>{txHash.slice(0, 18)}…</code>
+              {explorerUrl ? (
+                <>
+                  {' '}
+                  <a href={explorerUrl} target="_blank" rel="noreferrer">View on Explorer</a>
+                </>
+              ) : null}
+            </>
           ) : (
             <code style={styles.txHash}>N/A</code>
           )}
@@ -580,3 +725,10 @@ styleEl.innerHTML = `
 @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
 `;
 document.head.appendChild(styleEl);
+
+function normalizeChainId(id) {
+  if (!id) return '';
+  const s = String(id);
+  if (s.startsWith('0x')) return String(parseInt(s, 16));
+  return s;
+}
