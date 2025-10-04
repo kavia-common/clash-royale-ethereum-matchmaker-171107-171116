@@ -1,17 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 /**
  * Banner
  * Informational, success, warning, or error banner with Ocean Professional styling.
  *
  * Props:
- * - type: 'info' | 'success' | 'warning' | 'error'
+ * - type: 'info' | 'success' | 'warning' | 'error' (alias: variant)
  * - children: node
  * - role: string (optional override)
+ * - onClose?: function - when provided, renders a dismiss button and calls onClose when clicked
+ * - className?: string - optional className
  */
 // PUBLIC_INTERFACE
-export default function Banner({ type = 'info', children, role, style, ...rest }) {
+export default function Banner({
+  type = 'info',
+  variant,
+  children,
+  role,
+  style,
+  onClose,
+  className,
+  ...rest
+}) {
   /** This is a public function. */
+  const tone = variant || type;
+
+  // Ocean Professional aligned palette
   const palette = {
     info: {
       bg: '#EFF6FF',
@@ -21,33 +35,44 @@ export default function Banner({ type = 'info', children, role, style, ...rest }
       aria: 'status',
     },
     success: {
-      bg: '#ECFDF5',
-      border: '#6EE7B7',
-      text: '#065F46',
+      // success uses the secondary amber per style guide
+      bg: '#FFFBEB',
+      border: '#F59E0B',
+      text: '#7C2D12',
       icon: '✅',
       aria: 'status',
     },
     warning: {
-      bg: '#FFFBEB',
-      border: '#FDE68A',
+      bg: '#FEF3C7',
+      border: '#F59E0B',
       text: '#92400E',
       icon: '⚠️',
       aria: 'alert',
     },
     error: {
       bg: '#FEF2F2',
-      border: '#FCA5A5',
+      border: '#EF4444',
       text: '#991B1B',
       icon: '⛔',
       aria: 'alert',
     },
   };
 
-  const t = palette[type] || palette.info;
+  const t = palette[tone] || palette.info;
+
+  const [hidden, setHidden] = useState(false);
+  if (hidden) return null;
+
+  const handleClose = () => {
+    setHidden(true);
+    if (onClose) onClose();
+  };
 
   return (
     <div
       role={role || t.aria}
+      aria-live={t.aria === 'alert' ? 'assertive' : 'polite'}
+      className={className}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -55,15 +80,34 @@ export default function Banner({ type = 'info', children, role, style, ...rest }
         background: t.bg,
         border: `1px solid ${t.border}`,
         color: t.text,
-        padding: '8px 10px',
+        padding: '10px 12px',
         borderRadius: 10,
         fontSize: 14,
+        lineHeight: 1.3,
         ...style,
       }}
       {...rest}
     >
       <span aria-hidden="true">{t.icon}</span>
-      <span style={{ fontWeight: 600 }}>{children}</span>
+      <div style={{ fontWeight: 600, flex: 1, minWidth: 0 }}>{children}</div>
+      {typeof onClose === 'function' && (
+        <button
+          type="button"
+          aria-label="Dismiss notification"
+          onClick={handleClose}
+          style={{
+            marginLeft: 8,
+            background: 'transparent',
+            border: '1px solid transparent',
+            color: t.text,
+            cursor: 'pointer',
+            borderRadius: 8,
+            padding: '2px 6px',
+          }}
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }

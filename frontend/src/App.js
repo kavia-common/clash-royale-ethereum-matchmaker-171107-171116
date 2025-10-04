@@ -38,6 +38,11 @@ function App() {
   // Non-blocking environment banners
   const [showMockApiBanner, setShowMockApiBanner] = useState(IS_API_MOCK_MODE);
   const [showDryRunBanner, setShowDryRunBanner] = useState(isDryRun());
+  const escrowAddress = process.env.REACT_APP_ESCROW_ADDRESS || '';
+  const chainId = process.env.REACT_APP_CHAIN_ID || '';
+  const missingEscrowConfig =
+    !isDryRun() && (!escrowAddress || !chainId);
+  const [showConfigBanner, setShowConfigBanner] = useState(missingEscrowConfig);
 
   // Clash Royale dashboard open flag, profile is from global store (/cr/me)
   const [crOpen, setCrOpen] = useState(false);
@@ -101,7 +106,16 @@ function App() {
         )}
         {showDryRunBanner && (
           <Banner type="warning" onClose={() => setShowDryRunBanner(false)} style={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
-            Dry-run escrow mode: deposits are simulated. Set REACT_APP_ESCROW_ADDRESS and/or disable REACT_APP_DRY_RUN_ESCROW to send real transactions.
+            Dry-run escrow mode is active: deposits are simulated. To enable real transactions, set REACT_APP_ESCROW_ADDRESS and set REACT_APP_DRY_RUN_ESCROW to false.
+          </Banner>
+        )}
+        {showConfigBanner && (
+          <Banner
+            type="warning"
+            onClose={() => setShowConfigBanner(false)}
+            style={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
+          >
+            Escrow configuration incomplete. Please set REACT_APP_ESCROW_ADDRESS and REACT_APP_CHAIN_ID in your environment. See frontend/INTEGRATION_NOTES.md for guidance.
           </Banner>
         )}
       </div>
