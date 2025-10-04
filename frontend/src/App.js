@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import './theme.css';
 import { Routes, Route, useNavigate, useLocation, useParams } from 'react-router-dom';
 import LinkAccountModal from './components/LinkAccountModal';
 import WalletStatus from './components/WalletStatus';
@@ -8,7 +9,6 @@ import ProfileList from './components/ProfileList';
 import DepositsDashboard from './components/DepositsDashboard';
 import TierSelectionModal from './components/TierSelectionModal';
 import ClashRoyaleDashboard from './components/ClashRoyaleDashboard';
-import GameHistoryDashboard from './components/GameHistoryDashboard';
 import GameHistoryPage from './pages/GameHistoryPage';
 import SettingsModal from './components/SettingsModal';
 import CharacterFeatureHero from './components/CharacterFeatureHero';
@@ -151,20 +151,20 @@ function App() {
                   margin: '0 auto',
                   height: 64,
                   borderRadius: 9999,
-                  background: '#10B981',
+                  background: '#2563EB',
                   color: '#FFFFFF',
-                  border: '2px solid #059669',
+                  border: '2px solid #1D4ED8',
                   fontSize: 22,
                   fontWeight: 900,
                   letterSpacing: 0.4,
                   cursor: 'pointer',
-                  boxShadow: '0 14px 32px rgba(16,185,129,0.35)',
+                  boxShadow: '0 14px 32px rgba(37,99,235,0.35)',
                   transition: 'transform .12s ease, box-shadow .2s ease, opacity .2s ease',
                 }}
                 onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}
                 onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 18px 40px rgba(16,185,129,0.45)')}
-                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 14px 32px rgba(16,185,129,0.35)')}
+                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 18px 40px rgba(37,99,235,0.45)')}
+                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 14px 32px rgba(37,99,235,0.35)')}
               >
                 Make Wager
               </button>
@@ -176,7 +176,7 @@ function App() {
             title="Challenge the Arena. Wager with Confidence."
             subtitle="Find players, set Ethereum-backed wagers, and play fair with escrow-protected matches."
             primaryCta={{ label: 'Play Now', href: '#', onClick: () => setTiersOpen(true) }}
-            secondaryCta={{ label: 'Learn More', href: '/game-history' }}
+            secondaryCta={{ label: 'Learn More', href: '#', onClick: () => goToGameHistoryPrefetch() }}
           />
 
           {/* Top header/navigation */}
@@ -253,14 +253,14 @@ function App() {
                 <button
                   onClick={() => setCrOpen(true)}
                   style={{
-                    background: '#10B981',
+                    background: '#2563EB',
                     color: '#FFFFFF',
-                    border: '1px solid #059669',
+                    border: '1px solid #1D4ED8',
                     padding: '10px 14px',
                     borderRadius: 10,
                     cursor: 'pointer',
                     fontWeight: 800,
-                    boxShadow: '0 2px 8px rgba(16,185,129,0.35)',
+                    boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
                   }}
                   aria-label="View Clash Royale stats"
                   title="Open your Clash Royale profile"
