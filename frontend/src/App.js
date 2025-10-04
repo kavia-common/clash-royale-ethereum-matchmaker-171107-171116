@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import './theme.css';
-import { Routes, Route, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import LinkAccountModal from './components/LinkAccountModal';
 import WalletStatus from './components/WalletStatus';
 import WagerFilter from './components/WagerFilter';
@@ -74,7 +74,7 @@ function App() {
       // non-fatal; page will fetch on mount as well
     } finally {
       setPrefetching(false);
-      navigate('/game-history', { replace: false, state: { viaTopButtons: true } });
+      navigate('/history', { replace: false, state: { viaTopButtons: true } });
     }
   };
 
@@ -370,8 +370,9 @@ function App() {
           path="/"
           element={<HomePlaceholder onNavigateHistory={goToGameHistoryPrefetch} />}
         />
+        {/* Primary history route as per acceptance criteria */}
         <Route
-          path="/game-history"
+          path="/history"
           element={
             <GameHistoryPage
               prefetching={prefetching}
@@ -380,6 +381,8 @@ function App() {
             />
           }
         />
+        {/* Backward compatibility: redirect old path to new one */}
+        <Route path="/game-history" element={<Navigate to="/history" replace />} />
         <Route path="/wager/:id" element={<WagerDetailsRoute />} />
         <Route path="/settings" element={<SettingsRoute onOpen={() => setSettingsOpen(true)} />} />
       </Routes>

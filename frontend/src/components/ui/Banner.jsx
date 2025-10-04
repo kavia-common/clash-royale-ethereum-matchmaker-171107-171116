@@ -20,6 +20,7 @@ export default function Banner({
   style,
   onClose,
   className,
+  inline, // allows <Banner inline> usage without warnings
   ...rest
 }) {
   /** This is a public function. */

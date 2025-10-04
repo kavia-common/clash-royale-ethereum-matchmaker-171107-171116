@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from '../state/store';
 import { setAuthWallet, walletVerified } from '../state/actions';
 import apiClient from '../services/api';
 import { selectCrAccount } from '../state/selectors';
-import { Banner, InlineError } from './ui';
+import { Banner } from './ui';
 
 /**
  * WalletStatus
