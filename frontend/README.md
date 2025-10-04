@@ -4,10 +4,28 @@ This project provides a minimal React template with a clean, modern UI and minim
 
 ## Features
 
-- **Lightweight**: No heavy UI frameworks - uses only vanilla CSS and React
-- **Modern UI**: Clean, responsive design with KAVIA brand styling
-- **Fast**: Minimal dependencies for quick loading times
-- **Simple**: Easy to understand and modify
+- Lightweight: No heavy UI frameworks - uses only vanilla CSS and React
+- Modern UI: Clean, responsive design with KAVIA brand styling
+- Fast: Minimal dependencies for quick loading times
+- Simple: Easy to understand and modify
+
+## Environment Setup
+
+Copy the example environment file and configure required values.
+
+1) Copy .env.example to .env
+- cp .env.example .env
+
+2) Set the following variables in .env:
+- REACT_APP_API_URL: Backend base URL (e.g., http://localhost:8000)
+- REACT_APP_ESCROW_ADDRESS: Escrow contract address on the configured chain
+- REACT_APP_CHAIN_ID: Numeric chain ID (e.g., 1 for Mainnet, 11155111 for Sepolia)
+- REACT_APP_BLOCK_EXPLORER_BASE: Block explorer base URL (e.g., https://sepolia.etherscan.io)
+
+Notes:
+- All variables must be prefixed with REACT_APP_ to be accessible by the React app.
+- In development, the app will log helpful warnings if variables are missing or inconsistent.
+- Do not commit your .env file to version control.
 
 ## Getting Started
 
@@ -22,30 +40,28 @@ Integration
 - Profile list fetches data from backend; Escrow flow hits backend and contract
 - Clash Royale linking & stats (read-only): After linking via LinkAccountModal (tag or token), open the ClashRoyaleDashboard to view player profile and trophies. Stats are fetched by the backend from Supercell’s official API; no tokens are sent directly to Supercell from the browser.
 
-
 In the project directory, you can run:
 
-### `npm start`
+### npm start
 
-Runs the app in development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Runs the app in development mode.
+Open http://localhost:3000 to view it in your browser.
 
-### `npm test`
+### npm test
 
 Launches the test runner in interactive watch mode.
 
-### `npm run build`
+### npm run build
 
-Builds the app for production to the `build` folder.\
+Builds the app for production to the build folder.
 It correctly bundles React in production mode and optimizes the build for the best performance.
 
 ## Customization
 
 ### Colors
 
-The main brand colors are defined as CSS variables in `src/App.css`:
+The main brand colors are defined as CSS variables in src/App.css:
 
-```css
 :root {
   --kavia-orange: #E87A41;
   --kavia-dark: #1A1A1A;
@@ -53,42 +69,24 @@ The main brand colors are defined as CSS variables in `src/App.css`:
   --text-secondary: rgba(255, 255, 255, 0.7);
   --border-color: rgba(255, 255, 255, 0.1);
 }
-```
 
 ### Components
 
-This template uses pure HTML/CSS components instead of a UI framework. You can find component styles in `src/App.css`. 
+This template uses pure HTML/CSS components instead of a UI framework. You can find component styles in src/App.css. 
 
 Common components include:
-- Buttons (`.btn`, `.btn-large`)
-- Container (`.container`)
-- Navigation (`.navbar`)
-- Typography (`.title`, `.subtitle`, `.description`)
+- Buttons (.btn, .btn-large)
+- Container (.container)
+- Navigation (.navbar)
+- Typography (.title, .subtitle, .description)
 
 ## Learn More
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+To learn React, check out the React documentation: https://reactjs.org/
 
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- Code Splitting: https://facebook.github.io/create-react-app/docs/code-splitting
+- Analyzing the Bundle Size: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+- Making a Progressive Web App: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
+- Advanced Configuration: https://facebook.github.io/create-react-app/docs/advanced-configuration
+- Deployment: https://facebook.github.io/create-react-app/docs/deployment
+- Build fails to minify: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify

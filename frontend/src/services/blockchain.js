@@ -21,7 +21,8 @@ const DEFAULT_ESCROW_ABI = [
   "function deposit(uint256 wagerId) payable",
 ];
 
-function getEnv(key) {
+/** Normalize reading env in a safe way for CRA. */
+function readEnv(key) {
   try {
     return process.env[key];
   } catch {
@@ -29,10 +30,69 @@ function getEnv(key) {
   }
 }
 
+/** PUBLIC_INTERFACE */
+export function getEnv() {
+  /** Returns normalized environment configuration consumed by the dApp. */
+  const DEFAULTS = {
+    chainId: 11155111, // Sepolia by default
+    explorerBase: 'https://sepolia.etherscan.io',
+    escrowAddress: '',
+  };
+
+  const rawChainId = readEnv('REACT_APP_CHAIN_ID');
+  const chainId = Number(rawChainId);
+  const explorerBase = (readEnv('REACT_APP_BLOCK_EXPLORER_BASE') || '').trim();
+  const escrowAddress = (readEnv('REACT_APP_ESCROW_ADDRESS') || '').trim();
+
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (isDev) {
+    const missing = [];
+    if (!rawChainId) missing.push('REACT_APP_CHAIN_ID');
+    if (!explorerBase) missing.push('REACT_APP_BLOCK_EXPLORER_BASE');
+    if (!escrowAddress) missing.push('REACT_APP_ESCROW_ADDRESS');
+
+    if (missing.length) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[Env] Missing environment variables: ${missing.join(
+          ', '
+        )}. Using defaults where possible. Review frontend/.env.example for guidance.`
+      );
+    }
+
+    if (rawChainId && (!Number.isFinite(chainId) || chainId <= 0)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[Env] REACT_APP_CHAIN_ID="${rawChainId}" is not a valid positive number. Falling back to default (${DEFAULTS.chainId}).`
+      );
+    }
+
+    if (explorerBase && !/^https?:\/\/.+/i.test(explorerBase)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[Env] REACT_APP_BLOCK_EXPLORER_BASE should be a valid URL (e.g., https://sepolia.etherscan.io). Received "${explorerBase}".`
+      );
+    }
+
+    if (escrowAddress && !/^0x[a-fA-F0-9]{40}$/.test(escrowAddress)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[Env] REACT_APP_ESCROW_ADDRESS appears invalid. Expected 0x-prefixed 40 hex chars. Received "${escrowAddress}".`
+      );
+    }
+  }
+
+  return {
+    chainId: Number.isFinite(chainId) && chainId > 0 ? chainId : DEFAULTS.chainId,
+    explorerBase: explorerBase || DEFAULTS.explorerBase,
+    escrowAddress: escrowAddress || DEFAULTS.escrowAddress,
+  };
+}
+
 const ENV = {
-  ESCROW_ADDRESS: getEnv('REACT_APP_ESCROW_ADDRESS'),
-  CHAIN_ID: getEnv('REACT_APP_CHAIN_ID'),
-  EXPLORER: getEnv('REACT_APP_BLOCK_EXPLORER_BASE'),
+  ESCROW_ADDRESS: readEnv('REACT_APP_ESCROW_ADDRESS'),
+  CHAIN_ID: readEnv('REACT_APP_CHAIN_ID'),
+  EXPLORER: readEnv('REACT_APP_BLOCK_EXPLORER_BASE'),
 };
 
 if (process.env.NODE_ENV !== 'production') {
@@ -156,9 +216,73 @@ export class BlockchainClient {
    */
   formatTxLink(txHash) {
     /** This is a public function. */
-    if (!ENV.EXPLORER || !txHash) return undefined;
-    return `${ENV.EXPLORER.replace(/\/+$/, '')}/tx/${txHash}`;
+    const base = getExplorerBase();
+    if (!base || !txHash) return undefined;
+    return `${base.replace(/\/+$/, '')}/tx/${txHash}`;
   }
+}
+
+/** Internal helper to ensure we always use a clean base URL (no trailing slash). */
+function sanitizedBase(url) {
+  if (!url) return '';
+  return url.endsWith('/') ? url.slice(0, -1) : url;
+}
+
+// PUBLIC_INTERFACE
+export function getConfiguredChainId() {
+  /** Returns the configured chainId (number), with sane defaults and dev warnings handled by getEnv. */
+  return getEnv().chainId;
+}
+
+// PUBLIC_INTERFACE
+export function getExplorerBase() {
+  /** Returns the explorer base URL from configuration with sane defaults. */
+  return getEnv().explorerBase;
+}
+
+// PUBLIC_INTERFACE
+export function getEscrowAddress() {
+  /** Returns the configured escrow contract address (may be empty string if not set). */
+  return getEnv().escrowAddress;
+}
+
+// PUBLIC_INTERFACE
+export function buildAddressUrl(address) {
+  /** Builds a block explorer URL for a contract or wallet address. Returns empty string if inputs are missing. */
+  const base = getExplorerBase();
+  if (!base || !address) return '';
+  return `${sanitizedBase(base)}/address/${address}`;
+}
+
+// PUBLIC_INTERFACE
+export function buildTxUrl(txHash) {
+  /** Builds a block explorer URL for a transaction hash. Returns empty string if inputs are missing. */
+  const base = getExplorerBase();
+  if (!base || !txHash) return '';
+  return `${sanitizedBase(base)}/tx/${txHash}`;
+}
+
+// PUBLIC_INTERFACE
+export function isValidEthAddress(address) {
+  /** Lightweight validation for Ethereum addresses (0x + 40 hex chars). */
+  return /^0x[a-fA-F0-9]{40}$/.test(address || '');
+}
+
+// PUBLIC_INTERFACE
+export function warnIfIncompatibleChain(currentChainId) {
+  /**
+   * Logs a non-intrusive warning if the wallet's currentChainId does not match the configured chainId.
+   * Returns true when compatible, false when incompatible.
+   */
+  const configured = getConfiguredChainId();
+  if (currentChainId && configured && Number(currentChainId) !== Number(configured)) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[Blockchain] Wallet chain (${currentChainId}) does not match configured chain (${configured}). Some actions may fail.`
+    );
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -169,7 +293,7 @@ export class BlockchainClient {
  * @param {{ signer: ethers.Signer, matchId: string|number, amountEth: number|string, escrowAddress?: string, escrowAbi?: any[] }} params
  * @returns {Promise<{txHash: string, receipt?: any}>}
  */
-export async function sendEscrowDeposit({ signer, matchId, amountEth, escrowAddress = ENV.ESCROW_ADDRESS, escrowAbi = DEFAULT_ESCROW_ABI }) {
+export async function sendEscrowDeposit({ signer, matchId, amountEth, escrowAddress = readEnv('REACT_APP_ESCROW_ADDRESS'), escrowAbi = DEFAULT_ESCROW_ABI }) {
   /** This is a public function. */
   const client = new BlockchainClient({ escrowAddress, escrowAbi, signer });
   return client.deposit({ wagerId: matchId, amountEth });
