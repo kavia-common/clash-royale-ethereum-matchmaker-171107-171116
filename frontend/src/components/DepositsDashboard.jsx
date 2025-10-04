@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ethers } from 'ethers';
 import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
-import { BlockchainClient } from '../services/blockchain';
-import apiClient from '../services/api';
-import { Banner } from './ui';
+import { BlockchainClient, getExplorerTxUrl, isDryRun } from '../services/blockchain';
+import apiClient, { apiGetLiveWagers } from '../services/api';
+import { Banner, Skeleton } from './ui';
 
 /**
  * Ocean Professional theme tokens for the unified escrow/deposits panel mapped to CSS variables
  */
 const theme = {
-  primary: 'var(--color-primary)', // oceany blue
+  primary: 'var(--color-primary)',
   secondary: 'var(--color-secondary)',
   success: 'var(--color-success)',
   error: 'var(--color-error)',
@@ -23,28 +23,21 @@ const theme = {
 /**
  * PUBLIC_INTERFACE
  * DepositsDashboard
- * A single, full-width blue panel that unifies:
- * - Wallet status and ETH balance
- * - Deposit to escrow action
- * - Withdraw section (placeholder action until wired)
- * - Pending requests summary
- *
- * Props:
- * - pendingRequests: optional array of pending request objects to display. If omitted, uses a mocked list.
- * - onDeposit: optional async function({ amountEth }) -> { txHash }, performs the actual deposit via ethers/contract.
- *   If not provided, a mocked deposit flow is used.
- * - onWithdraw: optional async function() -> void, performs a withdraw flow if supported.
- * - wagerId: optional string|number - if provided, use escrow API + chain deposit for that wager
+ * A unified panel:
+ * - Wallet + network info
+ * - Escrow deposit + withdraw/cancel actions (safe no-op in dry run)
+ * - Pending deposits list with status and explorer links
+ * - Live wagers table from api.js
  */
 export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdraw, wagerId }) {
   /** This is a public function. */
   const { isConnected, address, connect, signer, chainId } = useEthereumWallet();
 
-  // Balance state
+  // Wallet/escrow balance
   const [balanceEth, setBalanceEth] = useState('');
   const [balanceError, setBalanceError] = useState('');
 
-  // Deposit panel state
+  // Deposit state
   const [amount, setAmount] = useState('0.10');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
@@ -52,23 +45,27 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
   const [explorerUrl, setExplorerUrl] = useState('');
   const [networkWarning, setNetworkWarning] = useState('');
 
-  // Withdraw
+  // Withdraw/cancel
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
   const [withdrawOk, setWithdrawOk] = useState(false);
 
-  // Pending list (mock if not provided)
+  // Live wagers
+  const [live, setLive] = useState([]);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState('');
+
+  // Pending list (fallback mock)
   const mocked = useMemo(
     () => ([
-      { id: 'req-101', opponent: 'AquaKnight', amountEth: 0.25, status: 'awaiting-opponent' },
-      { id: 'req-102', opponent: 'StormRider', amountEth: 0.75, status: 'pending' },
+      { id: 'req-101', opponent: 'AquaKnight', amountEth: 0.25, status: 'awaiting-opponent', txHash: '' },
+      { id: 'req-102', opponent: 'StormRider', amountEth: 0.75, status: 'pending', txHash: '' },
     ]),
     []
   );
-
   const items = Array.isArray(pendingRequests) ? pendingRequests : mocked;
 
-  // Load escrow config
+  // Escrow config
   const [escrowConfig, setEscrowConfigLocal] = useState(null);
   useEffect(() => {
     let cancelled = false;
@@ -83,7 +80,7 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
     return () => { cancelled = true; };
   }, []);
 
-  // Network warning if config and chainId differ
+  // Network warning
   useEffect(() => {
     if (!escrowConfig?.chainId || !chainId) {
       setNetworkWarning('');
@@ -94,7 +91,7 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
     setNetworkWarning(exp && cur && exp !== cur ? 'Wrong network selected.' : '');
   }, [escrowConfig, chainId]);
 
-  // Fetch balance when connected
+  // Wallet balance
   useEffect(() => {
     let canceled = false;
     async function readBalance() {
@@ -114,10 +111,25 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
       }
     }
     readBalance();
-    return () => {
-      canceled = true;
-    };
+    return () => { canceled = true; };
   }, [isConnected, signer, address]);
+
+  // Live wagers fetch
+  const refreshLive = async () => {
+    setLiveLoading(true);
+    setLiveError('');
+    try {
+      const data = await apiGetLiveWagers();
+      setLive(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setLiveError(e?.message || 'Failed to load live wagers');
+    } finally {
+      setLiveLoading(false);
+    }
+  };
+  useEffect(() => {
+    refreshLive();
+  }, []);
 
   const canDeposit = useMemo(() => {
     const n = Number(amount);
@@ -133,15 +145,14 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
       if (typeof onDeposit === 'function') {
         const res = await onDeposit({ amountEth: Number(amount) });
         setLastTx(res?.txHash || '');
+        if (res?.txHash) setExplorerUrl(getExplorerTxUrl(res.txHash) || '');
       } else if (wagerId != null && signer) {
-        // Chain + API flow when a wager id is provided
         const client = new BlockchainClient({
           signer,
           escrowAddress: escrowConfig?.address,
           escrowAbi: escrowConfig?.abi || undefined,
         });
 
-        // Check network
         const expected = normalizeChainId(escrowConfig?.chainId || process.env.REACT_APP_CHAIN_ID);
         const current = normalizeChainId(chainId);
         if (expected && current && expected !== current) {
@@ -157,19 +168,20 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
         setLastTx(hash);
         const url = client.formatTxLink(hash);
         if (url) setExplorerUrl(url);
-
-        // Notify backend
         try {
           await apiClient.depositNotify({ id: wagerId, txHash: hash, amountEth: Number(amount) });
         } catch {
           // non-fatal
         }
       } else {
-        // Fallback: mock a tx hash after slight delay
-        await new Promise((r) => setTimeout(r, 1000));
-        const mockHash = '0x' + Math.random().toString(16).slice(2).padEnd(64, '0').slice(0, 64);
+        // Dry-run or generic mock
+        await new Promise((r) => setTimeout(r, 800));
+        const mockHash = `0x${Math.random().toString(16).slice(2).padEnd(64, '0').slice(0, 64)}`;
         setLastTx(mockHash);
+        setExplorerUrl(getExplorerTxUrl(mockHash) || '');
       }
+      // After deposit, refresh live wagers
+      refreshLive();
     } catch (e) {
       const msg = e?.message || '';
       if (/user denied|user rejected|denied|rejected/i.test(msg)) {
@@ -193,8 +205,8 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
         await onWithdraw();
         setWithdrawOk(true);
       } else {
-        // Placeholder behavior until wired
-        await new Promise((r) => setTimeout(r, 900));
+        // Safe no-op/dry-run
+        await new Promise((r) => setTimeout(r, 700));
         setWithdrawOk(true);
       }
     } catch (e) {
@@ -204,35 +216,21 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
     }
   };
 
-  // Compute a mock USD balance display for the withdraw panel if backend not integrated.
+  // Mock USD est for display
   const mockUsdBalance = useMemo(() => {
-    // If we have ETH balance, show a rough USD estimate. Otherwise, use a static mock.
     const eth = Number(balanceEth || 0);
-    const usdPerEth = 3000; // mock conversion (do not rely on this for production)
-    const usd = eth > 0 ? eth * usdPerEth : 125.0; // default mock $125
+    const usdPerEth = 3000;
+    const usd = eth > 0 ? eth * usdPerEth : 125.0;
     return usd.toFixed(2);
   }, [balanceEth]);
 
   return (
     <section aria-label="Unified escrow and deposits panel" style={styles.wrapper}>
-      {/* Full-width blue rectangle */}
       <div style={styles.oceanPanel}>
         <div style={styles.centerWrap}>
           <h1 style={styles.heroTitle}>deposit in crypto</h1>
-          <div style={styles.subRow}>
-            {/* Withdraw secondary action */}
-            <button
-              type="button"
-              onClick={handleWithdraw}
-              style={styles.withdrawButton}
-              disabled={withdrawing}
-              aria-disabled={withdrawing}
-            >
-              {withdrawing ? 'withdrawing…' : 'withdraw'}
-            </button>
-          </div>
 
-          {/* Wallet + Balance compact row inside the blue block */}
+          {/* Wallet + balance row */}
           <div style={styles.walletCompact}>
             <span style={isConnected ? styles.dotConnected : styles.dotDisconnected} aria-hidden="true">
               {isConnected ? '●' : '○'}
@@ -257,10 +255,8 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
           </div>
           {networkWarning && <Banner type="warning">{networkWarning}</Banner>}
           {balanceError && <Banner type="error">{balanceError}</Banner>}
-          {withdrawError && <Banner type="error">{withdrawError}</Banner>}
-          {withdrawOk && <Banner type="success">Withdraw initiated</Banner>}
 
-          {/* Deposit action inside the blue panel */}
+          {/* Deposit */}
           <div style={styles.depositBlock}>
             <label htmlFor="deposit-amount" style={styles.inputLabel}>Amount (ETH)</label>
             <div style={styles.inputRow}>
@@ -290,19 +286,17 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
                 <span aria-hidden="true">✅</span>&nbsp;Submitted. Tx:&nbsp;
                 <code style={styles.txHash}>{lastTx.slice(0, 22)}…</code>
                 {explorerUrl ? (
-                  <>
-                    {' '}<a href={explorerUrl} target="_blank" rel="noreferrer" style={{ color: '#065F46', fontWeight: 800 }}>View on Explorer</a>
-                  </>
+                  <> <a href={explorerUrl} target="_blank" rel="noreferrer" style={{ color: '#065F46', fontWeight: 800 }}>View on Explorer</a></>
                 ) : null}
               </Banner>
             )}
           </div>
 
-          {/* Prominent green withdraw block under the blue deposit block */}
+          {/* Withdraw/cancel (safe no-op when dry-run) */}
           <div style={styles.withdrawPanel} aria-label="Withdraw panel">
             <div style={styles.withdrawHeader}>
               <h2 style={styles.withdrawTitle}>withdraw</h2>
-              <span style={styles.withdrawBadge}>escrow</span>
+              <span style={styles.withdrawBadge}>{isDryRun() ? 'dry-run' : 'escrow'}</span>
             </div>
             <div style={styles.withdrawGrid}>
               <div style={styles.withdrawStat}>
@@ -318,25 +312,45 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
                 <div style={styles.withdrawSub}>Network fees apply</div>
               </div>
               <div style={styles.withdrawAction}>
-                <button
-                  type="button"
-                  onClick={handleWithdraw}
-                  disabled={withdrawing}
-                  aria-disabled={withdrawing}
-                  style={{
-                    ...styles.withdrawCta,
-                    ...(withdrawing ? styles.disabledBtn : {}),
-                  }}
-                >
-                  {withdrawing ? 'Processing…' : 'Initiate Withdraw'}
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleWithdraw}
+                    disabled={withdrawing}
+                    aria-disabled={withdrawing}
+                    style={{
+                      ...styles.withdrawCta,
+                      ...(withdrawing ? styles.disabledBtn : {}),
+                    }}
+                  >
+                    {withdrawing ? 'Processing…' : 'Initiate Withdraw'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      // Safe cancel no-op in dry-run
+                      setWithdrawError('');
+                      try {
+                        await new Promise((r) => setTimeout(r, 400));
+                        setWithdrawOk(true);
+                      } catch (e) {
+                        setWithdrawError(e?.message || 'Cancel failed');
+                      }
+                    }}
+                    style={{ ...styles.withdrawCta, background: '#F59E0B', borderColor: '#F59E0B', color: '#111827' }}
+                    aria-label="Cancel pending escrow"
+                    title="Cancel pending escrow"
+                  >
+                    Cancel
+                  </button>
+                </div>
                 {withdrawError && <Banner type="error">{withdrawError}</Banner>}
-                {withdrawOk && <Banner type="success">Withdraw initiated</Banner>}
+                {withdrawOk && <Banner type="success">Action completed</Banner>}
               </div>
             </div>
           </div>
 
-          {/* Pending summary within the blue block */}
+          {/* Pending escrows */}
           <div style={styles.pendingWrap}>
             <div style={styles.pendingHeader}>pending escrows</div>
             {(!items || items.length === 0) ? (
@@ -345,12 +359,55 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
               </div>
             ) : (
               <ul style={styles.pendingList} aria-label="Pending deposit requests">
-                {items.map((r) => (
-                  <li key={r.id} style={styles.pendingItem}>
-                    <span style={styles.pendingText}>
-                      {r.opponent || 'Unknown'} · {Number(r.amountEth).toFixed(2)} ETH
-                    </span>
-                    <span style={styles.pendingStatus}>{labelForStatus(r.status)}</span>
+                {items.map((r) => {
+                  const link = r.txHash ? getExplorerTxUrl(r.txHash) : '';
+                  return (
+                    <li key={r.id} style={styles.pendingItem}>
+                      <span style={styles.pendingText}>
+                        {r.opponent || 'Unknown'} · {Number(r.amountEth).toFixed(2)} ETH
+                      </span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={styles.pendingStatus}>{labelForStatus(r.status)}</span>
+                        {link ? (
+                          <a href={link} target="_blank" rel="noreferrer" style={{ color: '#DBEAFE', fontSize: 12, textDecoration: 'underline' }}>
+                            view tx
+                          </a>
+                        ) : null}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* Live wagers list */}
+          <div style={styles.liveWrap}>
+            <div style={styles.liveHeader}>
+              <h3 style={styles.liveTitle}>live wagers</h3>
+              <button type="button" onClick={refreshLive} style={styles.refreshBtn} aria-label="Refresh live wagers">
+                Refresh
+              </button>
+            </div>
+            {liveLoading ? (
+              <div style={{ padding: 8 }}>
+                <Skeleton variant="text" count={3} />
+              </div>
+            ) : liveError ? (
+              <Banner type="error">{liveError}</Banner>
+            ) : (!live || live.length === 0) ? (
+              <div style={styles.liveEmpty}>No live wagers</div>
+            ) : (
+              <ul style={styles.liveList} aria-label="Live wagers">
+                {live.map((w) => (
+                  <li key={w.id} style={styles.liveItem}>
+                    <div style={styles.liveRow}>
+                      <span style={styles.liveId}>#{w.id}</span>
+                      <span style={styles.liveStatus}>{String(w.status || '').replace(/-/g, ' ')}</span>
+                      <span style={styles.liveAmounts}>
+                        {Number(w?.amounts?.challengerEth || 0).toFixed(2)} + {Number(w?.amounts?.opponentEth || 0).toFixed(2)} ETH
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -378,9 +435,7 @@ function labelForStatus(status) {
 }
 
 const styles = {
-  wrapper: {
-    width: '100%',
-  },
+  wrapper: { width: '100%' },
   oceanPanel: {
     width: '100%',
     background: `linear-gradient(180deg, #2563EB, #1D4ED8)`,
@@ -405,23 +460,6 @@ const styles = {
     fontWeight: 900,
     color: '#FFFFFF',
     letterSpacing: 0.4,
-    textTransform: 'lowercase',
-  },
-  subRow: {
-    display: 'flex',
-    gap: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  withdrawButton: {
-    background: '#E0E7FF',
-    color: '#1E3A8A',
-    border: '1px solid rgba(255,255,255,0.35)',
-    padding: '8px 12px',
-    borderRadius: 999,
-    cursor: 'pointer',
-    fontWeight: 800,
-    boxShadow: '0 2px 8px rgba(17,24,39,0.25)',
     textTransform: 'lowercase',
   },
   walletCompact: {
@@ -473,12 +511,8 @@ const styles = {
     fontWeight: 700,
     textAlign: 'left',
     marginBottom: 6,
-    textTransform: 'none',
   },
-  inputRow: {
-    display: 'flex',
-    gap: 8,
-  },
+  inputRow: { display: 'flex', gap: 8 },
   input: {
     flex: 1,
     padding: '10px 12px',
@@ -489,40 +523,13 @@ const styles = {
     color: '#0B1020',
     background: '#FFFFFF',
   },
-  hint: {
-    marginTop: 6,
-    fontSize: 12,
-    color: '#DBEAFE',
-    textAlign: 'left',
-  },
-  bannerError: {
-    marginTop: 8,
-    padding: '8px 10px',
-    borderRadius: 10,
-    background: '#FEF2F2',
-    color: theme.error,
-    border: `1px solid ${theme.error}33`,
-    fontSize: 14,
-  },
-  bannerSuccess: {
-    marginTop: 8,
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '8px 10px',
-    borderRadius: 10,
-    background: '#ECFDF5',
-    color: '#065F46',
-    border: '1px solid #A7F3D0',
-    fontSize: 14,
-  },
+  hint: { marginTop: 6, fontSize: 12, color: '#DBEAFE', textAlign: 'left' },
   txHash: {
     background: '#111827',
     color: '#F9FAFB',
     padding: '2px 6px',
     borderRadius: 6,
-    fontFamily:
-      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     fontSize: 12,
   },
   primaryButton: {
@@ -534,14 +541,10 @@ const styles = {
     cursor: 'pointer',
     fontWeight: 800,
     boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
-    textTransform: 'none',
   },
-  disabledBtn: {
-    filter: 'grayscale(0.3)',
-    opacity: 0.8,
-    cursor: 'not-allowed',
-    boxShadow: 'none',
-  },
+  disabledBtn: { filter: 'grayscale(0.3)', opacity: 0.8, cursor: 'not-allowed', boxShadow: 'none' },
+
+  // Pending list
   pendingWrap: {
     width: '100%',
     maxWidth: 720,
@@ -560,18 +563,8 @@ const styles = {
     textTransform: 'lowercase',
     letterSpacing: 0.4,
   },
-  pendingEmpty: {
-    color: '#DBEAFE',
-    fontSize: 13,
-  },
-  pendingList: {
-    listStyle: 'none',
-    padding: 0,
-    margin: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-  },
+  pendingEmpty: { color: '#DBEAFE', fontSize: 13 },
+  pendingList: { listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 },
   pendingItem: {
     display: 'flex',
     alignItems: 'center',
@@ -581,17 +574,10 @@ const styles = {
     background: 'rgba(255,255,255,0.08)',
     border: '1px solid rgba(255,255,255,0.2)',
   },
-  pendingText: {
-    color: '#F8FAFC',
-    fontWeight: 700,
-  },
-  pendingStatus: {
-    color: '#DBEAFE',
-    fontSize: 12,
-    fontWeight: 700,
-  },
+  pendingText: { color: '#F8FAFC', fontWeight: 700 },
+  pendingStatus: { color: '#DBEAFE', fontSize: 12, fontWeight: 700 },
 
-  /* Withdraw panel styles */
+  // Withdraw panel
   withdrawPanel: {
     width: '100%',
     maxWidth: 720,
@@ -602,77 +588,38 @@ const styles = {
     padding: 12,
     boxShadow: '0 8px 18px rgba(16,185,129,0.20)',
   },
-  withdrawHeader: {
-    display: 'flex',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  withdrawTitle: {
-    margin: 0,
-    fontSize: 18,
-    fontWeight: 900,
-    color: '#065F46',
-    textTransform: 'lowercase',
-    letterSpacing: 0.3,
-  },
-  withdrawBadge: {
-    fontSize: 12,
-    fontWeight: 800,
-    color: '#065F46',
-    background: '#D1FAE5',
-    border: '1px solid #A7F3D0',
-    padding: '2px 8px',
-    borderRadius: 999,
-  },
-  withdrawGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 12,
-    alignItems: 'stretch',
-  },
-  withdrawStat: {
-    background: '#FFFFFF',
-    border: '1px solid #A7F3D0',
-    borderRadius: 12,
-    padding: 12,
+  withdrawHeader: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 },
+  withdrawTitle: { margin: 0, fontSize: 18, fontWeight: 900, color: '#065F46', textTransform: 'lowercase', letterSpacing: 0.3 },
+  withdrawBadge: { fontSize: 12, fontWeight: 800, color: '#065F46', background: '#D1FAE5', border: '1px solid #A7F3D0', padding: '2px 8px', borderRadius: 999 },
+  withdrawGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'stretch' },
+  withdrawStat: { background: '#FFFFFF', border: '1px solid #A7F3D0', borderRadius: 12, padding: 12, textAlign: 'left' },
+  withdrawLabel: { fontSize: 12, color: '#047857', fontWeight: 800 },
+  withdrawValue: { fontSize: 18, fontWeight: 900, color: '#065F46' },
+  withdrawSub: { fontSize: 12, color: '#047857' },
+  withdrawAction: { gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center', background: '#D1FAE5', border: '1px solid #A7F3D0', borderRadius: 12, padding: 12 },
+  withdrawCta: { background: '#10B981', color: '#ffffff', border: '1px solid #10B981', padding: '10px 14px', borderRadius: 10, cursor: 'pointer', fontWeight: 800, boxShadow: '0 4px 12px rgba(16,185,129,0.35)' },
+
+  // Live wagers
+  liveWrap: {
+    width: '100%',
+    maxWidth: 720,
     textAlign: 'left',
-  },
-  withdrawLabel: {
-    fontSize: 12,
-    color: '#047857',
-    fontWeight: 800,
-  },
-  withdrawValue: {
-    fontSize: 18,
-    fontWeight: 900,
-    color: '#065F46',
-  },
-  withdrawSub: {
-    fontSize: 12,
-    color: '#047857',
-  },
-  withdrawAction: {
-    gridColumn: '1 / -1',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    alignItems: 'center',
-    background: '#D1FAE5',
-    border: '1px solid #A7F3D0',
+    marginTop: 12,
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.2)',
     borderRadius: 12,
-    padding: 12,
+    padding: 10,
   },
-  withdrawCta: {
-    background: '#10B981',
-    color: '#ffffff',
-    border: '1px solid #10B981',
-    padding: '10px 14px',
-    borderRadius: 10,
-    cursor: 'pointer',
-    fontWeight: 800,
-    boxShadow: '0 4px 12px rgba(16,185,129,0.35)',
-  },
+  liveHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  liveTitle: { margin: 0, fontSize: 14, fontWeight: 900, color: '#EAF2FF', letterSpacing: 0.3, textTransform: 'uppercase' },
+  refreshBtn: { background: '#FFFFFF', color: '#111827', border: '1px solid #E5E7EB', padding: '6px 10px', borderRadius: 999, cursor: 'pointer', fontWeight: 700 },
+  liveEmpty: { color: '#DBEAFE', fontSize: 13 },
+  liveList: { listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 },
+  liveItem: { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 10px' },
+  liveRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#F8FAFC' },
+  liveId: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', fontWeight: 700 },
+  liveStatus: { fontSize: 12, color: '#DBEAFE', fontWeight: 700, textTransform: 'capitalize' },
+  liveAmounts: { fontWeight: 800 },
 };
 
 function normalizeChainId(id) {
