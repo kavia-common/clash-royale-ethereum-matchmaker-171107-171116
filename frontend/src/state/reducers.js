@@ -20,6 +20,14 @@ export const initialState = {
     loading: false,
     error: '',
   },
+  // Global application filters
+  filters: {
+    wager: {
+      min: 0.01,
+      max: 5.0,
+    },
+    lastUpdatedAt: 0,
+  },
   crAccount: sliceDefault(null),
   profiles: {
     items: [],
@@ -173,6 +181,22 @@ export function rootReducer(state = initialState, action) {
           data: payload || null,
           loading: false,
           error: '',
+        },
+      };
+    }
+
+    // Filters
+    case 'FILTER_WAGER_SET': {
+      const nextMin = typeof payload?.min === 'number' ? payload.min : state.filters?.wager?.min ?? 0.01;
+      const nextMax = typeof payload?.max === 'number' ? payload.max : state.filters?.wager?.max ?? 5.0;
+      const min = Math.min(nextMin, nextMax);
+      const max = Math.max(nextMin, nextMax);
+      return {
+        ...state,
+        filters: {
+          ...(state.filters || {}),
+          wager: { min, max },
+          lastUpdatedAt: Date.now(),
         },
       };
     }

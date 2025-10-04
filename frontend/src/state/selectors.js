@@ -51,3 +51,10 @@ export const selectEscrowConfig = (state) => state?.escrow?.config || null;
  * @param {any} state
  */
 export const selectCrAccount = (state) => state?.crAccount?.data || null;
+
+/**
+ * PUBLIC_INTERFACE
+ * selectWagerFilter
+ * @param {any} state
+ */
+export const selectWagerFilter = (state) => state?.filters?.wager || { min: 0.01, max: 5.0 };

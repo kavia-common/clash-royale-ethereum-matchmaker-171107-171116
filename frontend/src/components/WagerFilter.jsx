@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { useAppDispatch, useAppSelector } from '../state/store';
+import { setWagerFilter } from '../state/actions';
+import { selectWagerFilter } from '../state/selectors';
 
 /**
  * Ocean Professional theme tokens for this component.
@@ -24,25 +27,27 @@ const theme = {
  */
 export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
   /** This is a public function. */
-  const [local, setLocal] = useState({
-    min: value?.min ?? min,
-    max: value?.max ?? max,
-  });
+  const dispatch = useAppDispatch();
+  const globalFilter = useAppSelector(selectWagerFilter);
+  const storeConnected = !onChange;
+
+  const initial = storeConnected
+    ? { min: globalFilter?.min ?? min, max: globalFilter?.max ?? max }
+    : { min: value?.min ?? min, max: value?.max ?? max };
+
+  const [local, setLocal] = useState(initial);
 
   // Track last emitted value to avoid duplicate emissions and to compare on blur
-  const lastEmittedRef = useRef({ min: value?.min ?? min, max: value?.max ?? max });
+  const lastEmittedRef = useRef({ ...initial });
 
   useEffect(() => {
-    // Sync local state with external value
-    setLocal({
-      min: value?.min ?? min,
-      max: value?.max ?? max,
-    });
-    lastEmittedRef.current = {
-      min: value?.min ?? min,
-      max: value?.max ?? max,
-    };
-  }, [value, min, max]);
+    // Sync local state with external value or store
+    const next = storeConnected
+      ? { min: globalFilter?.min ?? min, max: globalFilter?.max ?? max }
+      : { min: value?.min ?? min, max: value?.max ?? max };
+    setLocal(next);
+    lastEmittedRef.current = { ...next };
+  }, [value, min, max, storeConnected, globalFilter?.min, globalFilter?.max]);
 
   const presets = useMemo(
     () => [
@@ -70,9 +75,21 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     return val;
   };
 
+  // Debounced dispatch for store-connected mode
+  const debounceRef = useRef(null);
+  const debouncedDispatch = (next) => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      dispatch(setWagerFilter(next));
+      lastEmittedRef.current = next;
+    }, 250);
+  };
+
   // PUBLIC_INTERFACE
   const emitIfValidAndChanged = (next) => {
-    /** Emit onChange only if both min and max are valid numbers and changed from last emission. */
+    /** Emit onChange (controlled) or debounced global dispatch (store mode) if valid and changed. */
     if (
       typeof next.min === 'number' &&
       typeof next.max === 'number' &&
@@ -81,8 +98,12 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     ) {
       const prev = lastEmittedRef.current;
       if (prev.min !== next.min || prev.max !== next.max) {
-        onChange?.(next);
-        lastEmittedRef.current = next;
+        if (storeConnected) {
+          debouncedDispatch(next);
+        } else {
+          onChange?.(next);
+          lastEmittedRef.current = next;
+        }
       }
     }
   };

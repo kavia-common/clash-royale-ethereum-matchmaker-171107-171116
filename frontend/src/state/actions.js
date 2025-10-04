@@ -104,3 +104,15 @@ export const setCrAccountData = (data) => ({
   type: 'CR_ACCOUNT_SET',
   payload: data,
 });
+
+/**
+ * PUBLIC_INTERFACE
+ * setWagerFilter
+ * Update global wager filter range
+ * @param {{min: number, max: number}} payload
+ */
+export const setWagerFilter = (payload) => ({
+  /** This is a public function. */
+  type: 'FILTER_WAGER_SET',
+  payload,
+});

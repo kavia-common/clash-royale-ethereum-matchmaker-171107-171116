@@ -28,42 +28,86 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
   /** This is a public function. */
   const { signer, isConnected } = useEthereumWallet();
 
-  // Local list; if props provided we fallback to props; otherwise pull from API.
+  // If profiles provided via props, bypass API and pagination.
+  const shouldUseProps = profiles && profiles.length > 0;
+
+  // Server-backed state
   const [remoteProfiles, setRemoteProfiles] = useState([]);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState('');
 
-  useEffect(() => {
-    // If parent passed profiles, don't load from API unless empty.
-    if (profiles && profiles.length > 0) {
-      setRemoteProfiles(profiles);
-      return;
+  // Normalize API response to items/cursor/hasMore
+  const normalizeProfilesResponse = (res) => {
+    if (Array.isArray(res)) {
+      return { items: res, nextCursor: null, hasMore: false };
     }
-    let mounted = true;
+    const items = res?.items || [];
+    const cursor = res?.nextCursor ?? res?.cursor ?? res?.next ?? null;
+    const more = res?.hasMore ?? Boolean(cursor);
+    return { items, nextCursor: cursor, hasMore: more };
+  };
+
+  const loadInitial = async () => {
+    if (shouldUseProps) return;
+    setLoading(true);
+    setLoadError('');
+    try {
+      const res = await apiGetProfiles({ minWager: filter?.min, maxWager: filter?.max });
+      const norm = normalizeProfilesResponse(res);
+      setRemoteProfiles(norm.items);
+      setNextCursor(norm.nextCursor);
+      setHasMore(norm.hasMore);
+    } catch (e) {
+      setLoadError(e?.message || 'Failed to load profiles.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (shouldUseProps || !hasMore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await apiGetProfiles({ minWager: filter?.min, maxWager: filter?.max, cursor: nextCursor });
+      const norm = normalizeProfilesResponse(res);
+      setRemoteProfiles((curr) => [...curr, ...norm.items]);
+      setNextCursor(norm.nextCursor);
+      setHasMore(norm.hasMore);
+    } catch (e) {
+      setLoadError(e?.message || 'Failed to load more profiles.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Fetch on mount and when filter changes (server-side filtering)
+  useEffect(() => {
+    let cancelled = false;
     const run = async () => {
-      setLoading(true);
-      setLoadError('');
-      try {
-        const res = await apiGetProfiles();
-        if (!mounted) return;
-        // Expecting an array of { id, username, rank, avatarUrl?, wagerEth }
-        setRemoteProfiles(Array.isArray(res) ? res : (res?.items || []));
-      } catch (e) {
-        setLoadError(e?.message || 'Failed to load profiles.');
-      } finally {
-        if (mounted) setLoading(false);
+      if (shouldUseProps) {
+        setRemoteProfiles(profiles);
+        setNextCursor(null);
+        setHasMore(false);
+        setLoading(false);
+        setLoadError('');
+        return;
       }
+      await loadInitial();
     };
-    run();
+    if (!cancelled) run();
     return () => {
-      mounted = false;
+      cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profiles]);
+  }, [profiles, filter?.min, filter?.max]);
 
-  const list = profiles && profiles.length > 0 ? profiles : remoteProfiles;
+  const list = shouldUseProps ? profiles : remoteProfiles;
 
   const visible = useMemo(() => {
+    // Server already filters, but keep guard for robustness
     return list.filter((p) => p.wagerEth >= filter.min && p.wagerEth <= filter.max);
   }, [list, filter]);
 
@@ -83,9 +127,7 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
 
   const handleInitiate = async ({ opponentId, wagerEth }) => {
     // Create match intent on backend.
-    // Backend should return an object like { matchId, ... }
     const res = await apiCreateMatch({ opponentId, wagerEth });
-    // Accept several shapes, prefer res.matchId, else res.id
     const mid = res?.matchId ?? res?.id ?? null;
     setMatchId(mid);
     return { matchId: mid, ...res };
@@ -117,15 +159,41 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
   if (loading) {
     return (
       <section style={styles.container}>
-        <EmptyState message="Loading profiles…" />
+        <div style={styles.bannerInfo} role="status">Loading profiles…</div>
+        <div style={styles.grid}>
+          {[...Array(6)].map((_, i) => (
+            <article key={`skeleton-${i}`} style={styles.card}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div style={{ ...styles.avatarWrap, background: '#E5E7EB' }} />
+                <div style={{ flex: 1 }}>
+                  <div style={styles.skelLineWide} />
+                  <div style={styles.skelLine} />
+                </div>
+              </div>
+              <div style={{ ...styles.wagerRow, background: '#F3F4F6' }}>
+                <div style={styles.skelLineShort} />
+                <div style={styles.skelLineShort} />
+              </div>
+              <div style={styles.actions}>
+                <div style={styles.skelButton} />
+                <div style={{ ...styles.skelButton, width: 80 }} />
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
     );
   }
 
-  if (loadError) {
+  if (loadError && !visible.length) {
     return (
       <section style={styles.container}>
-        <EmptyState message={loadError} />
+        <div style={styles.bannerError} role="alert">
+          {loadError}
+          <button type="button" style={styles.retryBtn} onClick={() => { setLoadError(''); setTimeout(loadInitial, 0); }}>
+            Retry
+          </button>
+        </div>
       </section>
     );
   }
@@ -148,6 +216,14 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
 
   return (
     <section style={styles.container} aria-label="Profile list">
+      {loadError && (
+        <div style={styles.bannerWarning} role="status">
+          {loadError}{' '}
+          <button type="button" style={styles.retryInline} onClick={() => { setLoadError(''); if (!remoteProfiles.length) loadInitial(); }}>
+            Retry
+          </button>
+        </div>
+      )}
       <div style={styles.grid}>
         {visible.map((p) => (
           <article key={p.id} style={styles.card} aria-label={`${p.username} profile card`}>
@@ -201,6 +277,24 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
           </article>
         ))}
       </div>
+
+      {!shouldUseProps && hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loadingMore}
+            style={{
+              ...styles.primaryButton,
+              minWidth: 160,
+              opacity: loadingMore ? 0.7 : 1,
+            }}
+            aria-label="Load more profiles"
+          >
+            {loadingMore ? 'Loading…' : 'Load More'}
+          </button>
+        </div>
+      )}
 
       <EscrowModal
         open={modalOpen}
@@ -365,5 +459,77 @@ const styles = {
   emptySub: {
     fontSize: 14,
     color: theme.subtle,
+  },
+  bannerError: {
+    background: '#FEF2F2',
+    border: '1px solid #FECACA',
+    color: '#B91C1C',
+    padding: '10px 12px',
+    borderRadius: 10,
+    marginBottom: 12,
+    display: 'flex',
+    gap: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bannerWarning: {
+    background: '#FFFBEB',
+    border: '1px solid #FDE68A',
+    color: '#92400E',
+    padding: '8px 10px',
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  bannerInfo: {
+    background: '#EFF6FF',
+    border: '1px solid #DBEAFE',
+    color: '#1E3A8A',
+    padding: '8px 10px',
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  retryBtn: {
+    background: theme.primary,
+    color: '#ffffff',
+    border: '1px solid transparent',
+    padding: '6px 10px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 700,
+  },
+  retryInline: {
+    background: 'transparent',
+    color: '#92400E',
+    border: '1px dashed #F59E0B',
+    padding: '4px 8px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 700,
+    marginLeft: 8,
+  },
+  skelLine: {
+    height: 10,
+    width: '60%',
+    background: '#E5E7EB',
+    borderRadius: 6,
+    marginTop: 6,
+  },
+  skelLineWide: {
+    height: 12,
+    width: '80%',
+    background: '#E5E7EB',
+    borderRadius: 6,
+  },
+  skelLineShort: {
+    height: 12,
+    width: 90,
+    background: '#E5E7EB',
+    borderRadius: 6,
+  },
+  skelButton: {
+    height: 36,
+    width: 120,
+    background: '#E5E7EB',
+    borderRadius: 10,
   },
 };

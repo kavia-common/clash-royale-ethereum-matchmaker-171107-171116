@@ -13,9 +13,9 @@ import GameHistoryPage from './pages/GameHistoryPage';
 import SettingsModal from './components/SettingsModal';
 import CharacterFeatureHero from './components/CharacterFeatureHero';
 import './components/CharacterFeatureHero.css';
-import { apiGetProfiles, apiGetLiveWagers, apiGetGameHistory } from './services/api';
+import { apiGetLiveWagers, apiGetGameHistory } from './services/api';
 import { useAppSelector } from './state/store';
-import { selectAuthWallet, selectCrAccount } from './state/selectors';
+import { selectAuthWallet, selectCrAccount, selectWagerFilter } from './state/selectors';
 
 /**
  * PUBLIC_INTERFACE
@@ -67,37 +67,13 @@ function App() {
     }
   };
 
-  // Profile data and filtering state
-  const [profiles, setProfiles] = useState([]);
-  const [loadingProfiles, setLoadingProfiles] = useState(false);
-  const [profilesError, setProfilesError] = useState('');
-  const [filter, setFilter] = useState({ min: 0.01, max: 5.0 });
+  // Global wager filter from store
+  const wagerFilter = useAppSelector(selectWagerFilter);
 
   // Effect to apply theme to document element
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
-
-  useEffect(() => {
-    let mounted = true;
-    const run = async () => {
-      setLoadingProfiles(true);
-      setProfilesError('');
-      try {
-        const res = await apiGetProfiles();
-        if (!mounted) return;
-        setProfiles(Array.isArray(res) ? res : (res?.items || []));
-      } catch (e) {
-        setProfilesError(e?.message || 'Failed to load profiles.');
-      } finally {
-        if (mounted) setLoadingProfiles(false);
-      }
-    };
-    run();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   // PUBLIC_INTERFACE
   const toggleTheme = () => {
@@ -298,12 +274,7 @@ function App() {
               alignItems: 'start',
             }}
           >
-            <WagerFilter
-              min={0.01}
-              max={5.0}
-              value={filter}
-              onChange={(next) => setFilter(next)}
-            />
+            <WagerFilter min={0.01} max={5.0} />
             <div
               style={{
                 display: 'flex',
@@ -328,11 +299,7 @@ function App() {
                   Theme: <strong data-testid="theme-value">{theme}</strong>
                 </div>
               </div>
-              {profilesError ? (
-                <div style={{ color: '#EF4444' }} role="alert">{profilesError}</div>
-              ) : (
-                <ProfileList profiles={profiles} filter={filter} />
-              )}
+              <ProfileList filter={wagerFilter} />
             </div>
           </main>
         </>
