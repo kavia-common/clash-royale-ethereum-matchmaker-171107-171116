@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
 import { BlockchainClient } from '../services/blockchain';
 import apiClient from '../services/api';
+import { Banner } from './ui';
 
 /**
  * Ocean Professional theme tokens for the unified escrow/deposits panel mapped to CSS variables
@@ -254,10 +255,10 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
               </button>
             )}
           </div>
-          {networkWarning && <div role="alert" style={styles.bannerError}>{networkWarning}</div>}
-          {balanceError && <div role="alert" style={styles.bannerError}>{balanceError}</div>}
-          {withdrawError && <div role="alert" style={styles.bannerError}>{withdrawError}</div>}
-          {withdrawOk && <div role="status" style={styles.bannerSuccess}>Withdraw initiated</div>}
+          {networkWarning && <Banner type="warning">{networkWarning}</Banner>}
+          {balanceError && <Banner type="error">{balanceError}</Banner>}
+          {withdrawError && <Banner type="error">{withdrawError}</Banner>}
+          {withdrawOk && <Banner type="success">Withdraw initiated</Banner>}
 
           {/* Deposit action inside the blue panel */}
           <div style={styles.depositBlock}>
@@ -283,9 +284,9 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
               </button>
             </div>
             <div style={styles.hint}>Gas may vary by network congestion.</div>
-            {sendError && <div role="alert" style={styles.bannerError}>{sendError}</div>}
+            {sendError && <Banner type="error">{sendError}</Banner>}
             {lastTx && (
-              <div style={styles.bannerSuccess}>
+              <Banner type="success">
                 <span aria-hidden="true">✅</span>&nbsp;Submitted. Tx:&nbsp;
                 <code style={styles.txHash}>{lastTx.slice(0, 22)}…</code>
                 {explorerUrl ? (
@@ -293,7 +294,7 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
                     {' '}<a href={explorerUrl} target="_blank" rel="noreferrer" style={{ color: '#065F46', fontWeight: 800 }}>View on Explorer</a>
                   </>
                 ) : null}
-              </div>
+              </Banner>
             )}
           </div>
 
@@ -329,8 +330,8 @@ export default function DepositsDashboard({ pendingRequests, onDeposit, onWithdr
                 >
                   {withdrawing ? 'Processing…' : 'Initiate Withdraw'}
                 </button>
-                {withdrawError && <div role="alert" style={styles.bannerError}>{withdrawError}</div>}
-                {withdrawOk && <div role="status" style={styles.bannerSuccess}>Withdraw initiated</div>}
+                {withdrawError && <Banner type="error">{withdrawError}</Banner>}
+                {withdrawOk && <Banner type="success">Withdraw initiated</Banner>}
               </div>
             </div>
           </div>

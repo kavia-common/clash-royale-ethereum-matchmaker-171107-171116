@@ -3,6 +3,7 @@ import EscrowModal from './EscrowModal';
 import { apiCreateMatch, apiGetProfiles, apiConfirmDeposit } from '../services/api';
 import { useEthereumWallet } from '../hooks/useEthereumWallet';
 import { sendEscrowDeposit } from '../services/blockchain';
+import { Spinner, Banner, Skeleton } from './ui';
 
 /**
  * Ocean Professional theme tokens mapped to CSS variables
@@ -159,24 +160,31 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
   if (loading) {
     return (
       <section style={styles.container}>
-        <div style={styles.bannerInfo} role="status">Loading profiles…</div>
-        <div style={styles.grid}>
+        <div style={{ marginBottom: 8 }}>
+          <Banner type="info">
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Spinner srText="Loading profiles" />
+              <span>Loading profiles…</span>
+            </span>
+          </Banner>
+        </div>
+        <div style={styles.grid} aria-label="Loading profile skeletons">
           {[...Array(6)].map((_, i) => (
             <article key={`skeleton-${i}`} style={styles.card}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <div style={{ ...styles.avatarWrap, background: '#E5E7EB' }} />
+                <Skeleton variant="circle" width={48} height={48} />
                 <div style={{ flex: 1 }}>
-                  <div style={styles.skelLineWide} />
-                  <div style={styles.skelLine} />
+                  <Skeleton variant="text" width="80%" height={12} />
+                  <Skeleton variant="text" width="60%" height={10} />
                 </div>
               </div>
-              <div style={{ ...styles.wagerRow, background: '#F3F4F6' }}>
-                <div style={styles.skelLineShort} />
-                <div style={styles.skelLineShort} />
+              <div style={styles.wagerRow}>
+                <Skeleton variant="text" width={90} height={12} />
+                <Skeleton variant="text" width={90} height={12} />
               </div>
               <div style={styles.actions}>
-                <div style={styles.skelButton} />
-                <div style={{ ...styles.skelButton, width: 80 }} />
+                <Skeleton variant="rect" width={120} height={36} />
+                <Skeleton variant="rect" width={80} height={36} />
               </div>
             </article>
           ))}
@@ -188,12 +196,16 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
   if (loadError && !visible.length) {
     return (
       <section style={styles.container}>
-        <div style={styles.bannerError} role="alert">
-          {loadError}
-          <button type="button" style={styles.retryBtn} onClick={() => { setLoadError(''); setTimeout(loadInitial, 0); }}>
+        <Banner type="error">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            style={styles.retryBtn}
+            onClick={() => { setLoadError(''); setTimeout(loadInitial, 0); }}
+          >
             Retry
           </button>
-        </div>
+        </Banner>
       </section>
     );
   }
@@ -217,11 +229,17 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
   return (
     <section style={styles.container} aria-label="Profile list">
       {loadError && (
-        <div style={styles.bannerWarning} role="status">
-          {loadError}{' '}
-          <button type="button" style={styles.retryInline} onClick={() => { setLoadError(''); if (!remoteProfiles.length) loadInitial(); }}>
-            Retry
-          </button>
+        <div style={{ marginBottom: 12 }}>
+          <Banner type="warning" inline>
+            <span>{loadError}</span>
+            <button
+              type="button"
+              style={styles.retryInline}
+              onClick={() => { setLoadError(''); if (!remoteProfiles.length) loadInitial(); }}
+            >
+              Retry
+            </button>
+          </Banner>
         </div>
       )}
       <div style={styles.grid}>

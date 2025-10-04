@@ -4,6 +4,7 @@ import apiClient, { apiConfirmDeposit } from '../services/api';
 import { BlockchainClient } from '../services/blockchain';
 import { useAppDispatch } from '../state/store';
 import { setEscrowConfig, updateEscrowStatus } from '../state/actions';
+import { Spinner, Banner } from './ui';
 
 /**
  * Ocean Professional theme tokens mapped to CSS variables
@@ -244,9 +245,7 @@ export default function EscrowModal({
   }
 
   const wrongNetworkBanner = networkWarning ? (
-    <div role="alert" style={{ ...styles.warning, background: '#FEF3C7', color: '#92400E', borderColor: '#F59E0B66' }}>
-      {networkWarning}
-    </div>
+    <Banner type="warning">{networkWarning}</Banner>
   ) : null;
 
   if (!open) return null;
@@ -322,16 +321,14 @@ export default function EscrowModal({
           </div>
 
           {!isConnected && (
-            <div role="alert" style={styles.warning}>
+            <Banner type="warning">
               You must connect your Ethereum wallet to continue.
-            </div>
+            </Banner>
           )}
           {wrongNetworkBanner}
 
           {error && (
-            <div role="alert" style={styles.errorBanner}>
-              {error}
-            </div>
+            <Banner type="error">{error}</Banner>
           )}
 
           <StateIndicator
@@ -417,7 +414,7 @@ function StateIndicator({ step, txHash, explorerUrl }) {
   if (step === 'pending') {
     return (
       <div style={styles.stateRow}>
-        <Spinner />
+        <Spinner srText="Waiting for confirmation" />
         <div style={styles.stateText}>
           Transaction submitted. Waiting for confirmation…
         </div>
@@ -460,15 +457,7 @@ function StateIndicator({ step, txHash, explorerUrl }) {
   return null;
 }
 
-function Spinner() {
-  return (
-    <div
-      aria-label="Loading"
-      role="status"
-      style={styles.spinner}
-    />
-  );
-}
+
 
 const styles = {
   overlay: {
@@ -700,14 +689,7 @@ const styles = {
     fontSize: 14,
     fontWeight: 600,
   },
-  spinner: {
-    width: 18,
-    height: 18,
-    borderRadius: '50%',
-    border: '3px solid #BFDBFE',
-    borderTopColor: theme.primary,
-    animation: 'spin 1s linear infinite',
-  },
+
   txHash: {
     background: '#111827',
     color: '#F9FAFB',
@@ -719,12 +701,7 @@ const styles = {
   },
 };
 
-// Inject simple keyframes for spinner (scoped to component load)
-const styleEl = document.createElement('style');
-styleEl.innerHTML = `
-@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-`;
-document.head.appendChild(styleEl);
+
 
 function normalizeChainId(id) {
   if (!id) return '';

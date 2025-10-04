@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { apiGetCRPlayer, apiGetCRFavoriteCards } from '../services/api';
 import { useAppSelector } from '../state/store';
 import { selectCrAccount } from '../state/selectors';
+import { Spinner, Banner } from './ui';
 
 /**
  * Ocean Professional theme tokens for Clash Royale dashboard mapped to CSS variables
@@ -110,10 +111,10 @@ export default function ClashRoyaleDashboard({ open, onClose, playerTag, accessT
         </p>
 
         {/* Status */}
-        {error && <div role="alert" style={styles.errorBanner}>{error}</div>}
+        {error && <Banner type="error">{error}</Banner>}
         {loading && (
           <div style={styles.loadingRow}>
-            <Spinner />
+            <Spinner srText="Loading player stats" />
             <span style={styles.loadingText}>Loading player stats…</span>
           </div>
         )}
@@ -211,9 +212,7 @@ function Stat({ label, value }) {
   );
 }
 
-function Spinner() {
-  return <div aria-label="Loading" role="status" style={styles.spinner} />;
-}
+
 
 const styles = {
   overlay: {
@@ -378,19 +377,7 @@ const styles = {
   },
   cardEmoji: { fontSize: 14 },
   cardText: { fontSize: 12, fontWeight: 700, color: theme.text },
-  spinner: {
-    width: 18,
-    height: 18,
-    borderRadius: '50%',
-    border: '3px solid #BFDBFE',
-    borderTopColor: theme.primary,
-    animation: 'spin 1s linear infinite',
-  },
+
 };
 
-// Inject simple keyframes for spinner (scoped to component load)
-const styleEl = document.createElement('style');
-styleEl.innerHTML = `
-@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-`;
-document.head.appendChild(styleEl);
+

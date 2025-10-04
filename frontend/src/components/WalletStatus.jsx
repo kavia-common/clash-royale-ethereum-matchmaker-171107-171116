@@ -5,6 +5,7 @@ import { setAuthWallet } from '../state/actions';
 import apiClient from '../services/api';
 import { useAppSelector } from '../state/store';
 import { selectCrAccount } from '../state/selectors';
+import { Banner } from './ui';
 
 /**
  * WalletStatus
@@ -178,8 +179,17 @@ export default function WalletStatus() {
       </div>
 
       {(error || localError || wrongNetworkHint) && (
-        <div role="alert" style={styles.error(theme)}>
-          {error || localError || wrongNetworkHint}
+        <div style={{ minWidth: 0 }}>
+          {/* Use reusable Banner; type 'error' enforces role='alert' */}
+          <span style={{ display: 'inline-block' }}>
+            {/*
+              We avoid importing heavy CSS; inline style + Banner provides consistent UI.
+              Wrapping in span keeps layout impact minimal next to buttons.
+            */}
+            <Banner type="error">
+              {error || localError || wrongNetworkHint}
+            </Banner>
+          </span>
         </div>
       )}
 

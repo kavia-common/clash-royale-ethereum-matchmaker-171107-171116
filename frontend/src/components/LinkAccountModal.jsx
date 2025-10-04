@@ -3,6 +3,7 @@ import apiClient, { apiGetCRMe } from '../services/api';
 import { useAppDispatch, useAppSelector } from '../state/store';
 import { setSliceError, setSliceLoading, setCrAccountData } from '../state/actions';
 import { selectAuthWallet } from '../state/selectors';
+import { Banner } from './ui';
 
 /**
  * Ocean Professional theme tokens mapped to CSS variables
@@ -256,15 +257,13 @@ export default function LinkAccountModal({
           )}
 
           {!onSubmit && !verified && (
-            <div role="note" style={styles.infoBanner}>
+            <Banner type="info">
               Verify your Ethereum wallet to enable account linking.
-            </div>
+            </Banner>
           )}
 
           {error && (
-            <div role="alert" style={styles.errorBanner}>
-              {error}
-            </div>
+            <Banner type="error">{error}</Banner>
           )}
 
           <div style={styles.actions}>
