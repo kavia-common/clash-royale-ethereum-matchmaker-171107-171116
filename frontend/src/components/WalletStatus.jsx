@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
+import { useAppDispatch } from '../state/store';
+import { setAuthWallet } from '../state/actions';
 
 /**
  * WalletStatus
@@ -8,6 +10,7 @@ import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
 // PUBLIC_INTERFACE
 export default function WalletStatus() {
   /** This is a public function. */
+  const dispatch = useAppDispatch();
   const {
     address,
     isConnected,
@@ -16,7 +19,13 @@ export default function WalletStatus() {
     connect,
     disconnect,
     theme,
+    chainId,
   } = useEthereumWallet();
+
+  // Sync wallet state into global store's authSession slice (no-op if provider isn't mounted)
+  useEffect(() => {
+    dispatch(setAuthWallet({ address, chainId, isConnected, connecting, error }));
+  }, [dispatch, address, chainId, isConnected, connecting, error]);
 
   return (
     <div style={styles.container(theme)} aria-live="polite">
