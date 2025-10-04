@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import apiClient, { apiGetCRMe } from '../services/api';
+import { useAppDispatch, useAppSelector } from '../state/store';
+import { setSliceError, setSliceLoading, setCrAccountData } from '../state/actions';
+import { selectAuthWallet } from '../state/selectors';
 
 /**
  * Ocean Professional theme tokens
@@ -54,6 +58,7 @@ export default function LinkAccountModal({
   open,
   onClose,
   onSubmit, // optional async function receiving { tag, token }
+  onLinked, // optional callback after successful link and refresh
 }) {
   /** This is a public function. */
 
@@ -83,12 +88,16 @@ export default function LinkAccountModal({
   }, [mode, tag, token, touched]);
 
   const [canSubmit, setCanSubmit] = useState(false);
+  const dispatch = useAppDispatch();
+  const authWallet = useAppSelector(selectAuthWallet);
+  const verified = !!authWallet?.verified;
 
   // Recompute canSubmit after relevant state changes, allowing React to settle between events (e.g., blur)
   useEffect(() => {
-    const next = touched && validation.valid && !submitting;
+    const requiresVerified = !onSubmit; // internal API flow requires verified wallet session
+    const next = touched && validation.valid && !submitting && (!requiresVerified || verified);
     setCanSubmit(Boolean(next));
-  }, [touched, validation, submitting]);
+  }, [touched, validation, submitting, verified, onSubmit]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -103,33 +112,44 @@ export default function LinkAccountModal({
 
     setSubmitting(true);
     try {
-      // Placeholder API call. In future, replace with real backend POST.
-      // Example:
-      // const res = await fetch(`${process.env.REACT_APP_API_URL}/link-account`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ tag: result.tag, token: token || undefined }),
-      // });
-      // Handle real response.
-
       if (typeof onSubmit === 'function') {
         await onSubmit({
           tag: result.tag || undefined,
           token: mode === 'token' ? result.token : undefined,
           mode,
         });
-      } else {
-        // Stubbed latency to simulate request
-        await new Promise((r) => setTimeout(r, 600));
+        onClose?.();
+        return;
       }
 
+      // Require verified wallet session when using internal flow
+      if (!verified) {
+        setError('Please verify your wallet first to link your Clash Royale account.');
+        return;
+      }
+
+      dispatch(setSliceLoading('crAccount', true));
+      // Perform link
+      await apiClient.crLink({
+        tag: result.tag || undefined,
+        token: mode === 'token' ? result.token : undefined,
+      });
+
+      // Refresh linked profile
+      const me = await apiGetCRMe();
+      dispatch(setCrAccountData(me));
+      dispatch(setSliceError('crAccount', '')); // clear any previous errors
+
+      // Success: close and notify
+      onLinked?.(me);
       onClose?.();
     } catch (err) {
-      setError(
-        err?.message || 'Unexpected error while linking account. Please try again.'
-      );
+      const msg = err?.message || 'Unexpected error while linking account. Please try again.';
+      setError(msg);
+      dispatch(setSliceError('crAccount', msg));
     } finally {
       setSubmitting(false);
+      dispatch(setSliceLoading('crAccount', false));
     }
   };
 
@@ -232,6 +252,12 @@ export default function LinkAccountModal({
               <div id="api-token-help" style={styles.helpText}>
                 Keep this token private. It will be sent securely to the server.
               </div>
+            </div>
+          )}
+
+          {!onSubmit && !verified && (
+            <div role="note" style={styles.infoBanner}>
+              Verify your Ethereum wallet to enable account linking.
             </div>
           )}
 
@@ -371,6 +397,16 @@ const styles = {
     background: '#FEF2F2',
     color: theme.error,
     border: `1px solid ${theme.error}33`,
+    fontSize: 14,
+  },
+  infoBanner: {
+    marginTop: 8,
+    marginBottom: 8,
+    padding: '10px 12px',
+    borderRadius: 10,
+    background: '#EFF6FF',
+    color: theme.primary,
+    border: `1px solid ${theme.primary}33`,
     fontSize: 14,
   },
   actions: {

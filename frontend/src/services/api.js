@@ -366,6 +366,14 @@ export async function apiGetCRPlayer({ tag, token } = {}) {
   return defaultClient.getCRPlayer({ tag, token });
 }
 
+/** PUBLIC_INTERFACE
+ * apiGetCRMe
+ * Fetch the linked CR profile for the current session. Wrapper for crMe().
+ */
+export async function apiGetCRMe() {
+  return defaultClient.crMe();
+}
+
 // PUBLIC_INTERFACE
 export async function apiGetCRFavoriteCards({ tag, token } = {}) {
   /** Fetch CR favorites via backend proxy. */

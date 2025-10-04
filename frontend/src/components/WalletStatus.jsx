@@ -3,6 +3,8 @@ import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
 import { useAppDispatch } from '../state/store';
 import { setAuthWallet } from '../state/actions';
 import apiClient from '../services/api';
+import { useAppSelector } from '../state/store';
+import { selectCrAccount } from '../state/selectors';
 
 /**
  * WalletStatus
@@ -31,6 +33,7 @@ export default function WalletStatus() {
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [localError, setLocalError] = useState('');
+  const crAccount = useAppSelector(selectCrAccount);
 
   // Sync wallet state into global store's authSession slice (no-op if provider isn't mounted)
   useEffect(() => {
@@ -158,7 +161,7 @@ export default function WalletStatus() {
       <div style={styles.statusRow}>
         {isConnected ? (
           <span style={styles.connectedBadge(theme)} title={address}>
-            ● Connected{verified ? ' · Verified' : ' · Unverified'}
+            ● Connected{verified ? ' · Verified' : ' · Unverified'}{crAccount ? ' · Linked' : ''}
           </span>
         ) : (
           <span style={styles.disconnectedBadge}>○ Disconnected</span>

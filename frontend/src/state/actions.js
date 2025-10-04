@@ -92,3 +92,15 @@ export const updateEscrowStatus = (payload) => ({
   type: 'ESCROW_STATUS_UPDATE',
   payload,
 });
+
+/**
+ * PUBLIC_INTERFACE
+ * setCrAccountData
+ * Set the linked Clash Royale account/profile data returned by /cr/me
+ * @param {any} data
+ */
+export const setCrAccountData = (data) => ({
+  /** This is a public function. */
+  type: 'CR_ACCOUNT_SET',
+  payload: data,
+});

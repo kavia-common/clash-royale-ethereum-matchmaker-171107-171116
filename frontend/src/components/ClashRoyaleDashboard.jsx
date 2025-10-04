@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiGetCRPlayer, apiGetCRFavoriteCards } from '../services/api';
+import { useAppSelector } from '../state/store';
+import { selectCrAccount } from '../state/selectors';
 
 /**
  * Ocean Professional theme tokens for Clash Royale dashboard
@@ -38,11 +40,14 @@ export default function ClashRoyaleDashboard({ open, onClose, playerTag, accessT
   const [favorites, setFavorites] = useState([]);
   const [error, setError] = useState('');
 
+  const crAccount = useAppSelector(selectCrAccount);
+
   const normalizedTag = useMemo(() => {
-    if (!playerTag) return '';
-    const t = String(playerTag).trim().toUpperCase();
+    const sourceTag = playerTag || crAccount?.tag || crAccount?.player?.tag;
+    if (!sourceTag) return '';
+    const t = String(sourceTag).trim().toUpperCase();
     return t.startsWith('#') ? t : `#${t}`;
-  }, [playerTag]);
+  }, [playerTag, crAccount]);
 
   useEffect(() => {
     if (!open) return;

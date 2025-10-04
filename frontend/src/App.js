@@ -13,7 +13,9 @@ import GameHistoryPage from './pages/GameHistoryPage';
 import SettingsModal from './components/SettingsModal';
 import CharacterFeatureHero from './components/CharacterFeatureHero';
 import './components/CharacterFeatureHero.css';
-import { apiGetProfiles, apiLinkAccount, apiGetLiveWagers, apiGetGameHistory } from './services/api';
+import { apiGetProfiles, apiGetLiveWagers, apiGetGameHistory } from './services/api';
+import { useAppSelector } from './state/store';
+import { selectAuthWallet, selectCrAccount } from './state/selectors';
 
 /**
  * PUBLIC_INTERFACE
@@ -31,10 +33,10 @@ function App() {
   const [tiersOpen, setTiersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Clash Royale linking state (frontend memory; real persistence should be backend/session)
-  const [crTag, setCrTag] = useState('');
-  const [crToken, setCrToken] = useState('');
+  // Clash Royale dashboard open flag, profile is from global store (/cr/me)
   const [crOpen, setCrOpen] = useState(false);
+  const authWallet = useAppSelector(selectAuthWallet);
+  const crAccount = useAppSelector(selectCrAccount);
   // Game history data prefetch state for immediate display on navigation
   const [prefetching, setPrefetching] = useState(false);
   const [prefetchedLive, setPrefetchedLive] = useState(null);
@@ -102,19 +104,7 @@ function App() {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
 
-  // PUBLIC_INTERFACE
-  const handleLinkSubmit = async ({ tag, token, mode }) => {
-    /**
-     * Submit account linking to backend.
-     * If wallet integration is required for linking, that can be added by providing walletAddress here.
-     * After successful linking, open the CR dashboard to show the user's stats (read-only).
-     */
-    await apiLinkAccount({ tag, token });
-    if (tag) setCrTag(tag);
-    if (token) setCrToken(token);
-    // Immediately show stats panel after link success
-    setCrOpen(true);
-  };
+
 
   const isHome = location.pathname === '/' || location.pathname === '';
 
@@ -219,6 +209,55 @@ function App() {
 
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
                 <WalletStatus />
+                {/* Linked status badge */}
+                <span
+                  title={crAccount ? 'Clash Royale account linked' : 'No Clash Royale account linked'}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: crAccount ? '#10B981' : '#6B7280',
+                    background: crAccount ? '#ECFDF5' : '#F3F4F6',
+                    border: `1px solid ${crAccount ? '#10B98133' : '#E5E7EB'}`,
+                    padding: '4px 8px',
+                    borderRadius: 999,
+                  }}
+                >
+                  {crAccount ? 'CR Linked' : 'CR Unlinked'}
+                </span>
+                <button
+                  onClick={() => setLinkOpen(true)}
+                  style={{
+                    background: authWallet?.verified ? '#2563EB' : '#93C5FD',
+                    color: '#FFFFFF',
+                    border: '1px solid transparent',
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
+                  }}
+                  aria-label="Link Clash Royale account"
+                  title={authWallet?.verified ? 'Link your Clash Royale account' : 'Verify wallet to link account'}
+                >
+                  Link CR
+                </button>
+                <button
+                  onClick={() => setCrOpen(true)}
+                  style={{
+                    background: '#10B981',
+                    color: '#FFFFFF',
+                    border: '1px solid #059669',
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    boxShadow: '0 2px 8px rgba(16,185,129,0.35)',
+                  }}
+                  aria-label="View Clash Royale stats"
+                  title="Open your Clash Royale profile"
+                >
+                  View CR Stats
+                </button>
                 <button
                   onClick={() => setTiersOpen(true)}
                   style={{
@@ -303,7 +342,7 @@ function App() {
       <LinkAccountModal
         open={linkOpen}
         onClose={() => setLinkOpen(false)}
-        onSubmit={handleLinkSubmit}
+        onLinked={() => setCrOpen(true)}
       />
 
       <TierSelectionModal
@@ -322,8 +361,7 @@ function App() {
       <ClashRoyaleDashboard
         open={crOpen}
         onClose={() => setCrOpen(false)}
-        playerTag={crTag}
-        accessToken={crToken}
+        playerTag={crAccount?.tag || crAccount?.player?.tag}
       />
 
       {/* App-level routes */}

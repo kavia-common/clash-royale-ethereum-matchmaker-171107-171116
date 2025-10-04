@@ -166,6 +166,17 @@ export function rootReducer(state = initialState, action) {
       };
     }
 
+    case 'CR_ACCOUNT_SET': {
+      return {
+        ...state,
+        crAccount: {
+          data: payload || null,
+          loading: false,
+          error: '',
+        },
+      };
+    }
+
     default:
       return state;
   }
