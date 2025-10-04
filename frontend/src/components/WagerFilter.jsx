@@ -50,15 +50,15 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     lastEmittedRef.current = { ...next };
   }, [value, min, max, storeConnected, globalFilter?.min, globalFilter?.max]);
 
+  // Quick presets per acceptance criteria; apply immediately
   const presets = useMemo(
     () => [
-      { label: 'Any', min, max },
-      { label: '≤ 0.1 ETH', min: min, max: 0.1 },
-      { label: '0.1 – 0.5 ETH', min: 0.1, max: 0.5 },
-      { label: '0.5 – 1.0 ETH', min: 0.5, max: 1.0 },
-      { label: '≥ 1.0 ETH', min: 1.0, max },
+      { label: '0.01 ETH', min: min, max: 0.01 },
+      { label: '0.05 ETH', min: min, max: 0.05 },
+      { label: '0.10 ETH', min: min, max: 0.1 },
+      { label: '0.50 ETH', min: min, max: 0.5 },
     ],
-    [min, max]
+    [min]
   );
 
   const parseMaybeNumber = (val) => {
@@ -85,7 +85,7 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
     debounceRef.current = setTimeout(() => {
       dispatch(setWagerFilter(next));
       lastEmittedRef.current = next;
-    }, 250);
+    }, 300);
   };
 
   // PUBLIC_INTERFACE
@@ -241,9 +241,9 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
         Set maximum desired wager amount.
       </div>
 
-      <div style={styles.presets} role="group" aria-label="Wager presets">
+      <div style={styles.presets} role="group" aria-label="Quick wager presets">
         {presets.map((p) => {
-          const active = p.min === Number(local.min) && p.max === Number(local.max);
+          const active = Number(local.min) === p.min && Number(local.max) === p.max;
           return (
             <button
               key={p.label}
@@ -254,6 +254,7 @@ export default function WagerFilter({ min = 0.01, max = 5, value, onChange }) {
                 ...(active ? styles.presetActive : {}),
               }}
               aria-pressed={active}
+              title={`Set max to ${p.label}`}
             >
               {p.label}
             </button>
