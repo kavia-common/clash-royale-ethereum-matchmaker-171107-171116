@@ -2,15 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ethers } from 'ethers';
 
 /**
- * Ocean Professional theme tokens (local use)
+ * Ocean Professional theme tokens (local use) mapped to CSS variables
  */
 const theme = {
-  primary: '#2563EB',
-  secondary: '#F59E0B',
-  error: '#EF4444',
-  background: '#f9fafb',
-  surface: '#ffffff',
-  text: '#111827',
+  primary: 'var(--color-primary)',
+  secondary: 'var(--color-secondary)',
+  error: 'var(--color-error)',
+  background: 'var(--bg)',
+  surface: 'var(--surface)',
+  text: 'var(--text)',
 };
 
 // PUBLIC_INTERFACE

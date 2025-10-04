@@ -1,18 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 /**
- * Ocean Professional theme tokens for Game History Dashboard.
+ * Ocean Professional theme tokens for Game History Dashboard mapped to CSS variables.
  */
 const theme = {
-  primary: '#2563EB',
-  secondary: '#F59E0B',
-  success: '#10B981',
-  error: '#EF4444',
-  background: '#f9fafb',
-  surface: '#ffffff',
-  text: '#111827',
-  muted: '#6B7280',
-  border: '#E5E7EB',
+  primary: 'var(--color-primary)',
+  secondary: 'var(--color-secondary)',
+  success: 'var(--color-success)',
+  error: 'var(--color-error)',
+  background: 'var(--bg)',
+  surface: 'var(--surface)',
+  text: 'var(--text)',
+  muted: 'var(--muted, #6B7280)',
+  border: 'var(--border, #E5E7EB)',
 };
 
 /**

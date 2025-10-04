@@ -5,15 +5,15 @@ import { useEthereumWallet } from '../hooks/useEthereumWallet';
 import { sendEscrowDeposit } from '../services/blockchain';
 
 /**
- * Ocean Professional theme tokens
+ * Ocean Professional theme tokens mapped to CSS variables
  */
 const theme = {
-  primary: '#2563EB',
-  secondary: '#F59E0B',
-  background: '#f9fafb',
-  surface: '#ffffff',
-  text: '#111827',
-  subtle: '#6B7280',
+  primary: 'var(--color-primary)',
+  secondary: 'var(--color-secondary)',
+  background: 'var(--bg)',
+  surface: 'var(--surface)',
+  text: 'var(--text)',
+  subtle: 'var(--muted, #6B7280)',
 };
 
 /**

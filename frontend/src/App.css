@@ -1,17 +1,17 @@
 /* CSS Variables for Theme Management */
 :root {
-  /* Light theme colors */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --text-primary: #111827;
-  --text-secondary: #2563EB;
-  --border-color: #e5e7eb;
-  --button-bg: #2563EB;
+  /* Map local variables to centralized theme tokens */
+  --bg-primary: var(--bg);
+  --bg-secondary: #f8f9fa; /* optional subtle alternate */
+  --text-primary: var(--text);
+  --text-secondary: var(--color-primary);
+  --border-color: var(--border);
+  --button-bg: var(--color-primary);
   --button-text: #ffffff;
 }
 
 [data-theme="dark"] {
-  /* Dark theme colors */
+  /* Dark theme colors (kept as-is for now) */
   --bg-primary: #0b1020;
   --bg-secondary: #111827;
   --text-primary: #f9fafb;

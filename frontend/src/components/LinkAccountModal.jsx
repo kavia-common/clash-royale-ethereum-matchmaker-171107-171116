@@ -5,17 +5,17 @@ import { setSliceError, setSliceLoading, setCrAccountData } from '../state/actio
 import { selectAuthWallet } from '../state/selectors';
 
 /**
- * Ocean Professional theme tokens
+ * Ocean Professional theme tokens mapped to CSS variables
  * Keeping tokens local to component for easy reuse and future theming system integration.
  */
 const theme = {
-  primary: '#2563EB',
-  secondary: '#F59E0B',
-  success: '#F59E0B',
-  error: '#EF4444',
-  background: '#f9fafb',
-  surface: '#ffffff',
-  text: '#111827',
+  primary: 'var(--color-primary)',
+  secondary: 'var(--color-secondary)',
+  success: 'var(--color-success)',
+  error: 'var(--color-error)',
+  background: 'var(--bg)',
+  surface: 'var(--surface)',
+  text: 'var(--text)',
   overlay: 'rgba(17, 24, 39, 0.5)',
 };
 

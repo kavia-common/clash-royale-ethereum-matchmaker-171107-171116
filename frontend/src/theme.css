@@ -1,0 +1,55 @@
+:root {
+  /* Ocean Professional theme tokens */
+  --color-primary: #2563EB;
+  --color-secondary: #F59E0B;
+  --color-success: #F59E0B;
+  --color-error: #EF4444;
+
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --text: #111827;
+
+  /* Additional helpful tokens */
+  --border: #E5E7EB;
+  --muted: #6B7280;
+
+  /* Focus ring color (uses primary at ~45% alpha) */
+  --focus-ring: rgba(37, 99, 235, 0.45);
+}
+
+/* Gradient utility classes */
+.bg-gradient-ocean {
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.10), #f9fafb);
+}
+
+.bg-gradient-surface {
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.04), #ffffff);
+}
+
+/* Subtle shadow and transitions utilities (optional) */
+.shadow-subtle {
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+}
+.rounded-md {
+  border-radius: 12px;
+}
+.rounded-lg {
+  border-radius: 16px;
+}
+.transition-base {
+  transition: all 0.2s ease;
+}
+
+/* Base document colors */
+html, body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Accessible focus states across interactive elements */
+:where(button, [role="button"], a, input, select, textarea):focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  /* Fallback shadow for environments that suppress outline */
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}

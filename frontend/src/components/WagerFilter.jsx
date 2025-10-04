@@ -4,15 +4,16 @@ import { setWagerFilter } from '../state/actions';
 import { selectWagerFilter } from '../state/selectors';
 
 /**
- * Ocean Professional theme tokens for this component.
+ * Ocean Professional theme tokens for this component mapped to CSS variables.
  */
 const theme = {
-  primary: '#2563EB',
-  secondary: '#F59E0B',
-  error: '#EF4444',
-  background: '#f9fafb',
-  surface: '#ffffff',
-  text: '#111827',
+  primary: 'var(--color-primary)',
+  secondary: 'var(--color-secondary)',
+  error: 'var(--color-error)',
+  background: 'var(--bg)',
+  surface: 'var(--surface)',
+  text: 'var(--text)',
+  subtle: 'var(--muted, #6B7280)',
 };
 
 /**

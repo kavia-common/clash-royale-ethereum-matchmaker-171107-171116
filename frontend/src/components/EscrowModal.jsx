@@ -6,18 +6,18 @@ import { useAppDispatch } from '../state/store';
 import { setEscrowConfig, updateEscrowStatus } from '../state/actions';
 
 /**
- * Ocean Professional theme tokens
+ * Ocean Professional theme tokens mapped to CSS variables
  */
 const theme = {
-  primary: '#2563EB',
-  secondary: '#F59E0B',
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
-  background: '#f9fafb',
-  surface: '#ffffff',
-  text: '#111827',
-  muted: '#6B7280',
+  primary: 'var(--color-primary)',
+  secondary: 'var(--color-secondary)',
+  success: 'var(--color-success)',
+  warning: 'var(--color-secondary)',
+  error: 'var(--color-error)',
+  background: 'var(--bg)',
+  surface: 'var(--surface)',
+  text: 'var(--text)',
+  muted: 'var(--muted, #6B7280)',
   overlay: 'rgba(17, 24, 39, 0.55)',
 };
 
