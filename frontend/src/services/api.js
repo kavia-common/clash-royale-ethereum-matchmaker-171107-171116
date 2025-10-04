@@ -263,7 +263,8 @@ export function createApiClient(baseUrl = BASE_URL) {
   async function getCRFavoriteCards({ tag, token } = {}) {
     /** Fetch CR favorites/deck via backend proxy. */
     if (IS_API_MOCK_MODE) {
-      return { favorites: ['Knight', 'Archers', 'Fireball'] };
+      // Return a simple array of card objects for ease of rendering
+      return [{ name: 'Knight' }, { name: 'Archers' }, { name: 'Fireball' }, { name: 'Zap' }];
     }
     const params = new URLSearchParams();
     if (tag) params.set("tag", String(tag));

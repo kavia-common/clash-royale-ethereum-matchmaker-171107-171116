@@ -1,68 +1,69 @@
 import React from 'react';
 
-const palette = {
-  info:   { bg: '#EFF6FF', border: '#DBEAFE', color: '#1E3A8A', icon: 'ℹ️' },
-  success:{ bg: '#ECFDF5', border: '#A7F3D0', color: '#065F46', icon: '✅' },
-  warning:{ bg: '#FFFBEB', border: '#FDE68A', color: '#92400E', icon: '⚠️' },
-  error:  { bg: '#FEF2F2', border: '#FCA5A5', color: 'var(--color-error, #EF4444)', icon: '⛔' },
-};
-
 /**
- * PUBLIC_INTERFACE
  * Banner
- * Consistent status and error messaging with optional dismiss action.
+ * Informational, success, warning, or error banner with Ocean Professional styling.
  *
  * Props:
  * - type: 'info' | 'success' | 'warning' | 'error'
- * - onClose: function to dismiss (renders an × button if provided)
- * - children: content
- * - roleOverride: explicitly set ARIA role if needed
- * - inline: reduces padding and radius slightly
+ * - children: node
+ * - role: string (optional override)
  */
 // PUBLIC_INTERFACE
-export default function Banner({ type = 'info', onClose, children, roleOverride, inline = false, style }) {
+export default function Banner({ type = 'info', children, role, style, ...rest }) {
   /** This is a public function. */
-  const tone = palette[type] || palette.info;
-  // Default ARIA role: make warning and error assertive to satisfy existing tests
-  const role = roleOverride || (type === 'error' || type === 'warning' ? 'alert' : 'status');
+  const palette = {
+    info: {
+      bg: '#EFF6FF',
+      border: '#93C5FD',
+      text: '#1E3A8A',
+      icon: 'ℹ️',
+      aria: 'status',
+    },
+    success: {
+      bg: '#ECFDF5',
+      border: '#6EE7B7',
+      text: '#065F46',
+      icon: '✅',
+      aria: 'status',
+    },
+    warning: {
+      bg: '#FFFBEB',
+      border: '#FDE68A',
+      text: '#92400E',
+      icon: '⚠️',
+      aria: 'alert',
+    },
+    error: {
+      bg: '#FEF2F2',
+      border: '#FCA5A5',
+      text: '#991B1B',
+      icon: '⛔',
+      aria: 'alert',
+    },
+  };
+
+  const t = palette[type] || palette.info;
 
   return (
     <div
-      role={role}
+      role={role || t.aria}
       style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 10,
-        background: tone.bg,
-        border: `1px solid ${tone.border}`,
-        color: tone.color,
-        padding: inline ? '6px 8px' : '10px 12px',
-        borderRadius: inline ? 8 : 10,
+        gap: 8,
+        background: t.bg,
+        border: `1px solid ${t.border}`,
+        color: t.text,
+        padding: '8px 10px',
+        borderRadius: 10,
+        fontSize: 14,
         ...style,
       }}
+      {...rest}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span aria-hidden="true">{tone.icon}</span>
-        <div>{children}</div>
-      </div>
-      {typeof onClose === 'function' ? (
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Dismiss"
-          style={{
-            border: 'none',
-            background: 'transparent',
-            color: tone.color,
-            fontSize: 18,
-            lineHeight: 1,
-            cursor: 'pointer',
-          }}
-        >
-          ×
-        </button>
-      ) : null}
+      <span aria-hidden="true">{t.icon}</span>
+      <span style={{ fontWeight: 600 }}>{children}</span>
     </div>
   );
 }

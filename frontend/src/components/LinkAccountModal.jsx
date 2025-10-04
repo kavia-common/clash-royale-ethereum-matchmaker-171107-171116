@@ -141,8 +141,14 @@ export default function LinkAccountModal({
       dispatch(setCrAccountData(me));
       dispatch(setSliceError('crAccount', '')); // clear any previous errors
 
-      // Success: close and notify
+      // Success feedback
       onLinked?.(me);
+      setError(''); // clear any previous error
+      // brief success confirmation then close
+      try {
+        // eslint-disable-next-line no-unused-expressions
+        window?.dispatchEvent && window.dispatchEvent(new CustomEvent('cr-link-success'));
+      } catch {}
       onClose?.();
     } catch (err) {
       const msg = err?.message || 'Unexpected error while linking account. Please try again.';

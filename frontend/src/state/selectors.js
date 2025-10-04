@@ -63,6 +63,20 @@ export const selectCrAccount = (state) => state?.crAccount?.data || null;
 
 /**
  * PUBLIC_INTERFACE
+ * selectCrAccountLoading
+ * @param {any} state
+ */
+export const selectCrAccountLoading = (state) => !!(state?.crAccount?.loading);
+
+/**
+ * PUBLIC_INTERFACE
+ * selectCrAccountError
+ * @param {any} state
+ */
+export const selectCrAccountError = (state) => state?.crAccount?.error || '';
+
+/**
+ * PUBLIC_INTERFACE
  * selectWagerFilter
  * @param {any} state
  */
