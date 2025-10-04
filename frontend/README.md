@@ -1,44 +1,35 @@
-# Lightweight React Template for KAVIA
+# Clash Royale Ethereum Matchmaker - Frontend
 
-This project provides a minimal React template with a clean, modern UI and minimal dependencies.
+This is the React frontend for browsing player profiles, linking Clash Royale accounts, filtering by wager, and running the escrow flow for ETH wagers.
 
-## Features
+## Development Modes
 
-- Lightweight: No heavy UI frameworks - uses only vanilla CSS and React
-- Modern UI: Clean, responsive design with KAVIA brand styling
-- Fast: Minimal dependencies for quick loading times
-- Simple: Easy to understand and modify
+- Mock API mode: If `REACT_APP_API_URL` is not set in `.env`, the frontend returns deterministic mock data for profiles, wagers, and history. Components will show a small banner indicating "Mock API mode".
+- Dry-run escrow: If `REACT_APP_DRY_RUN_ESCROW=true`, the blockchain service simulates a deposit with a synthetic tx hash and a short confirmation delay. The Escrow modal shows a banner indicating "Dry-run mode". No on-chain transactions are sent.
 
-## Environment Setup
+## Environment Variables
 
-Copy the example environment file and configure required values.
+Create a `.env` file in the `frontend` directory. See `.env.example` for an example. Key variables:
 
-1) Copy .env.example to .env
-- cp .env.example .env
-
-2) Set the following variables in .env:
-- REACT_APP_API_URL: Backend base URL (e.g., http://localhost:8000)
-- REACT_APP_ESCROW_ADDRESS: Escrow contract address on the configured chain
-- REACT_APP_CHAIN_ID: Numeric chain ID (e.g., 1 for Mainnet, 11155111 for Sepolia)
-- REACT_APP_BLOCK_EXPLORER_BASE: Block explorer base URL (e.g., https://sepolia.etherscan.io)
+- `REACT_APP_API_URL` (optional in dev): Backend API base URL. If omitted, mock data is used and a banner is shown.
+- `REACT_APP_ESCROW_ADDRESS`: Escrow contract address on the configured chain.
+- `REACT_APP_CHAIN_ID`: Numeric chain ID (e.g., 11155111 for Sepolia).
+- `REACT_APP_BLOCK_EXPLORER_BASE`: Block explorer base URL (e.g., https://sepolia.etherscan.io).
+- `REACT_APP_DRY_RUN_ESCROW`: Set to `true` to simulate escrow deposits without on-chain tx.
 
 Notes:
-- All variables must be prefixed with REACT_APP_ to be accessible by the React app.
+- All variables must be prefixed with `REACT_APP_` to be accessible by the React app.
 - In development, the app will log helpful warnings if variables are missing or inconsistent.
-- Do not commit your .env file to version control.
+- Do not commit your `.env` file to version control.
 
-## Getting Started
+## Where logic lives
 
-Environment
-- Copy .env.example to .env and set:
-  - REACT_APP_API_URL: your backend base URL (e.g., http://localhost:8000)
-  - REACT_APP_ESCROW_ADDRESS: escrow contract address on the active chain
+- API calls are centralized in `src/services/api.js`. This file includes mock fallbacks when no `REACT_APP_API_URL` is set.
+- Blockchain interactions are in `src/services/blockchain.js`. This file includes a dry-run mode when `REACT_APP_DRY_RUN_ESCROW=true`.
+- `ProfileList.jsx` shows a banner when mock mode is active.
+- `EscrowModal.jsx` shows a banner when dry-run is active.
 
-Integration
-- API calls are centralized in src/services/api.js
-- Ethers escrow deposit helper is in src/services/blockchain.js
-- Profile list fetches data from backend; Escrow flow hits backend and contract
-- Clash Royale linking & stats (read-only): After linking via LinkAccountModal (tag or token), open the ClashRoyaleDashboard to view player profile and trophies. Stats are fetched by the backend from Supercell’s official API; no tokens are sent directly to Supercell from the browser.
+## Available Scripts
 
 In the project directory, you can run:
 
@@ -49,44 +40,13 @@ Open http://localhost:3000 to view it in your browser.
 
 ### npm test
 
-Launches the test runner in interactive watch mode.
+Launches the test runner in watch mode.
 
 ### npm run build
 
-Builds the app for production to the build folder.
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Builds the app for production to the `build` folder.
 
-## Customization
+## Notes
 
-### Colors
-
-The main brand colors are defined as CSS variables in src/App.css:
-
-:root {
-  --kavia-orange: #E87A41;
-  --kavia-dark: #1A1A1A;
-  --text-color: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.7);
-  --border-color: rgba(255, 255, 255, 0.1);
-}
-
-### Components
-
-This template uses pure HTML/CSS components instead of a UI framework. You can find component styles in src/App.css. 
-
-Common components include:
-- Buttons (.btn, .btn-large)
-- Container (.container)
-- Navigation (.navbar)
-- Typography (.title, .subtitle, .description)
-
-## Learn More
-
-To learn React, check out the React documentation: https://reactjs.org/
-
-- Code Splitting: https://facebook.github.io/create-react-app/docs/code-splitting
-- Analyzing the Bundle Size: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
-- Making a Progressive Web App: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
-- Advanced Configuration: https://facebook.github.io/create-react-app/docs/advanced-configuration
-- Deployment: https://facebook.github.io/create-react-app/docs/deployment
-- Build fails to minify: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+- The escrow contract ABI and method names are placeholders; align with the on-chain contract as it stabilizes.
+- The mock API shapes are designed to enable UI development and tests; adjust as backend endpoints finalize.

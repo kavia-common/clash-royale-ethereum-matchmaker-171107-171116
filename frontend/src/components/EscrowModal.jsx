@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { truncateAddress, useEthereumWallet } from '../hooks/useEthereumWallet';
 import apiClient, { apiConfirmDeposit } from '../services/api';
-import { BlockchainClient } from '../services/blockchain';
+import { BlockchainClient, IS_DRY_RUN_ESCROW } from '../services/blockchain';
 import { useAppDispatch } from '../state/store';
 import { setEscrowConfig, updateEscrowStatus } from '../state/actions';
 import { Spinner, Banner } from './ui';
@@ -170,7 +170,7 @@ export default function EscrowModal({
       const id = matchId ?? 0;
 
       // Send deposit
-      const { txHash: hash, receipt } = await client.deposit({
+      const { txHash: hash, receipt, dryRun } = await client.deposit({
         wagerId: id,
         amountEth: Number(wager),
       });
@@ -178,21 +178,27 @@ export default function EscrowModal({
       const url = client.formatTxLink(hash || receipt?.transactionHash || '');
       if (url) setExplorerUrl(url);
 
-      // Notify backend of deposit tx hash (best-effort)
+      // Notify backend of deposit tx hash (best-effort, skip in dry-run)
       try {
-        await apiClient.depositNotify({ id, txHash: hash || receipt?.transactionHash || '', amountEth: Number(wager) });
+        if (!dryRun) {
+          await apiClient.depositNotify({ id, txHash: hash || receipt?.transactionHash || '', amountEth: Number(wager) });
+        }
       } catch (e) {
         // eslint-disable-next-line no-console
         console.warn('Deposit notify failed, will continue to poll status', e);
       }
 
-      // Poll escrow status to reflect readiness
-      await pollEscrowStatus({ id, attempts: 6, delayMs: 2000 });
+      // Poll escrow status to reflect readiness (skip if dry-run and no backend)
+      if (!dryRun) {
+        await pollEscrowStatus({ id, attempts: 6, delayMs: 2000 });
+      }
 
       // Optional: confirm wager if backend requires a call after both deposits
       try {
-        await apiConfirmDeposit({ matchId: id, txHash: hash || receipt?.transactionHash || '' });
-        await apiClient.confirmWager({ id });
+        if (!dryRun) {
+          await apiConfirmDeposit({ matchId: id, txHash: hash || receipt?.transactionHash || '' });
+          await apiClient.confirmWager({ id });
+        }
       } catch {
         // Not fatal; some backends auto-confirm when both deposits present
       }
@@ -275,6 +281,14 @@ export default function EscrowModal({
             ×
           </button>
         </div>
+
+        {IS_DRY_RUN_ESCROW && (
+          <div style={{ marginBottom: 8 }}>
+            <Banner type="info" inline>
+              Dry-run mode active (REACT_APP_DRY_RUN_ESCROW=true). Deposits are simulated; no on-chain transactions will be sent.
+            </Banner>
+          </div>
+        )}
 
         <p id="escrow-modal-desc" style={styles.subtitle}>
           Review players and wager amount. You’ll be prompted to confirm an Ethereum transaction

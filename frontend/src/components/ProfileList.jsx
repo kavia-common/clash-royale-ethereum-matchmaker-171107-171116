@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import EscrowModal from './EscrowModal';
-import { apiCreateMatch, apiGetProfiles, apiConfirmDeposit } from '../services/api';
+import { apiCreateMatch, apiGetProfiles } from '../services/api';
+import { IS_API_MOCK_MODE } from '../services/api';
 import { useEthereumWallet } from '../hooks/useEthereumWallet';
 import { sendEscrowDeposit } from '../services/blockchain';
 import { Spinner, Banner, Skeleton } from './ui';
@@ -145,15 +146,6 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
       matchId: matchId ?? 0,
       amountEth: wagerEth,
     });
-    // Notify backend with tx hash if we have a match id
-    if (matchId && depositRes?.txHash) {
-      try {
-        await apiConfirmDeposit({ matchId, txHash: depositRes.txHash });
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to confirm deposit with backend. You may need to refresh status manually.', e);
-      }
-    }
     return { txHash: depositRes?.txHash };
   };
 
@@ -210,7 +202,7 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
     );
   }
 
-  if (list.length === 0) {
+  if ((list.length === 0)) {
     return (
       <section style={styles.container}>
         <EmptyState message="No profiles available yet." />
@@ -228,6 +220,13 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
 
   return (
     <section style={styles.container} aria-label="Profile list">
+      {IS_API_MOCK_MODE && (
+        <div style={{ marginBottom: 8 }}>
+          <Banner type="info" inline>
+            Backend not configured (REACT_APP_API_URL missing). Showing deterministic mock profiles.
+          </Banner>
+        </div>
+      )}
       {loadError && (
         <div style={{ marginBottom: 12 }}>
           <Banner type="warning" inline>
@@ -320,8 +319,15 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
         challenger={null}
         opponent={selected || undefined}
         defaultWager={selected?.wagerEth}
-        onInitiate={handleInitiate}
-        onDeposit={handleDeposit}
+        onInitiate={async ({ opponentId, wagerEth }) => {
+          const res = await handleInitiate({ opponentId, wagerEth });
+          setMatchId(res.matchId || res.id || null);
+          return res;
+        }}
+        onDeposit={async ({ opponentId, wagerEth }) => {
+          const res = await handleDeposit({ opponentId, wagerEth });
+          return res;
+        }}
         onComplete={() => {}}
       />
     </section>

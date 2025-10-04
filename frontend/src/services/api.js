@@ -17,6 +17,9 @@
 
 const BASE_URL = process.env.REACT_APP_API_URL || "";
 
+// Flag: mock mode when API URL is missing and not production
+export const IS_API_MOCK_MODE = !BASE_URL && process.env.NODE_ENV !== 'production';
+
 /**
  * PUBLIC_INTERFACE
  * ApiError
@@ -156,20 +159,71 @@ export function createApiClient(baseUrl = BASE_URL) {
     return {};
   };
 
+  // Mock helpers
+  function seededRand(seed) {
+    let h = 2166136261 ^ seed;
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  function mockProfile(i) {
+    const r = seededRand(1000 + i);
+    const ranks = ["Bronze", "Silver", "Gold", "Platinum", "Diamond"];
+    return {
+      id: `mock-${i + 1}`,
+      username: `Player_${i + 1}`,
+      rank: ranks[i % ranks.length],
+      avatarUrl: '',
+      wagerEth: Number((0.05 + (r % 0.45)).toFixed(2)),
+    };
+  }
+  function mockProfiles({ minWager, maxWager, cursor } = {}) {
+    const start = Number(cursor || 0);
+    const pageSize = 10;
+    const items = Array.from({ length: pageSize }, (_, idx) => mockProfile(start + idx));
+    const filtered = items.filter(p => {
+      const okMin = minWager != null ? p.wagerEth >= Number(minWager) : true;
+      const okMax = maxWager != null ? p.wagerEth <= Number(maxWager) : true;
+      return okMin && okMax;
+    });
+    const nextCursor = start + pageSize < 60 ? String(start + pageSize) : null;
+    return { items: filtered, nextCursor, hasMore: Boolean(nextCursor) };
+  }
+  function mockHistory() {
+    return Array.from({ length: 6 }, (_, i) => ({
+      id: `hist-${i}`,
+      date: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
+      opponent: `0x${(i + 1).toString(16).padStart(40, 'a')}`,
+      wagerEth: Number((0.05 + i * 0.02).toFixed(2)),
+      result: i % 2 === 0 ? 'win' : 'loss',
+      profitEth: i % 2 === 0 ? Number((0.05 + i * 0.02).toFixed(2)) : -Number((0.05 + i * 0.02).toFixed(2)),
+    }));
+  }
+
   // Auth/session
   // PUBLIC_INTERFACE
   async function getSessionMe() {
     /** Get current session user. GET /me */
+    if (IS_API_MOCK_MODE) {
+      return { id: 'dev-user', username: 'DevUser', address: `0x${'d'.repeat(40)}` };
+    }
     return request(baseUrl, `/me`, { method: "GET", headers: authHeaders() });
   }
   // PUBLIC_INTERFACE
   async function getWalletNonce(address) {
     /** Request nonce for wallet signature. POST /auth/wallet-nonce */
+    if (IS_API_MOCK_MODE) {
+      return { nonce: `mock-nonce-${(address || '').slice(2, 6)}` };
+    }
     return request(baseUrl, `/auth/wallet-nonce`, { method: "POST", body: { address } });
   }
   // PUBLIC_INTERFACE
   async function verifyWalletSignature({ address, signature }) {
     /** Verify wallet signature and establish a session. POST /auth/wallet-verify */
+    if (IS_API_MOCK_MODE) {
+      return { ok: true, address, signature, token: 'mock-session' };
+    }
     return request(baseUrl, `/auth/wallet-verify`, { method: "POST", body: { address, signature } });
   }
 
@@ -177,11 +231,17 @@ export function createApiClient(baseUrl = BASE_URL) {
   // PUBLIC_INTERFACE
   async function crLink({ tag, token }) {
     /** Link CR account to session. POST /cr/link */
+    if (IS_API_MOCK_MODE) {
+      return { ok: true, tag, linkedAt: new Date().toISOString() };
+    }
     return request(baseUrl, `/cr/link`, { method: "POST", headers: authHeaders(), body: { tag, token } });
   }
   // PUBLIC_INTERFACE
   async function crMe() {
     /** Fetch linked CR profile. GET /cr/me */
+    if (IS_API_MOCK_MODE) {
+      return { tag: '#2PP', name: 'Dev Barbarian', trophies: 4200, expLevel: 13 };
+    }
     return request(baseUrl, `/cr/me`, { method: "GET", headers: authHeaders() });
   }
 
@@ -189,6 +249,9 @@ export function createApiClient(baseUrl = BASE_URL) {
   // PUBLIC_INTERFACE
   async function getCRPlayer({ tag, token } = {}) {
     /** Fetch CR player profile via backend proxy. */
+    if (IS_API_MOCK_MODE) {
+      return { tag: tag || '#2PP', name: 'Dev Barbarian', trophies: 4200, expLevel: 13 };
+    }
     const params = new URLSearchParams();
     if (tag) params.set("tag", String(tag));
     const headers = { ...authHeaders() };
@@ -199,6 +262,9 @@ export function createApiClient(baseUrl = BASE_URL) {
   // PUBLIC_INTERFACE
   async function getCRFavoriteCards({ tag, token } = {}) {
     /** Fetch CR favorites/deck via backend proxy. */
+    if (IS_API_MOCK_MODE) {
+      return { favorites: ['Knight', 'Archers', 'Fireball'] };
+    }
     const params = new URLSearchParams();
     if (tag) params.set("tag", String(tag));
     const headers = { ...authHeaders() };
@@ -211,6 +277,9 @@ export function createApiClient(baseUrl = BASE_URL) {
   // PUBLIC_INTERFACE
   async function getProfiles({ minWager, maxWager, cursor } = {}) {
     /** List profiles with optional wager filter and pagination. GET /profiles */
+    if (IS_API_MOCK_MODE) {
+      return new Promise((resolve) => setTimeout(() => resolve(mockProfiles({ minWager, maxWager, cursor })), 120));
+    }
     const params = new URLSearchParams();
     if (minWager != null) params.set("minWager", String(minWager));
     if (maxWager != null) params.set("maxWager", String(maxWager));
@@ -223,21 +292,37 @@ export function createApiClient(baseUrl = BASE_URL) {
   // PUBLIC_INTERFACE
   async function getLiveWagers() {
     /** List current live/open wagers. GET /wagers/live */
+    if (IS_API_MOCK_MODE) {
+      return [
+        { id: 'live-1', status: 'awaiting-deposits', players: { challenger: '0x'+'a'.repeat(40), opponent: '0x'+'b'.repeat(40)}, amounts: { challengerEth: 0.1, opponentEth: 0.1 } },
+      ];
+    }
     return request(baseUrl, `/wagers/live`, { method: "GET", headers: authHeaders() });
   }
   // PUBLIC_INTERFACE
   async function getWagerHistory() {
     /** List wager history for the authenticated user. GET /wagers/history */
+    if (IS_API_MOCK_MODE) {
+      return mockHistory();
+    }
     return request(baseUrl, `/wagers/history`, { method: "GET", headers: authHeaders() });
   }
   // PUBLIC_INTERFACE
   async function initiateWager({ opponentId, wagerEth }) {
     /** Create a new wager intent. POST /wagers/initiate */
+    if (IS_API_MOCK_MODE) {
+      return new Promise((resolve) =>
+        setTimeout(() => resolve({ id: `mock-wager-${Date.now()}`, opponentId, wagerEth, status: 'awaiting-deposits' }), 120)
+      );
+    }
     return request(baseUrl, `/wagers/initiate`, { method: "POST", headers: authHeaders(), body: { opponentId, wagerEth } });
   }
   // PUBLIC_INTERFACE
   async function depositNotify({ id, txHash, amountEth }) {
     /** Notify backend of a deposit tx hash. POST /wagers/:id/deposit */
+    if (IS_API_MOCK_MODE) {
+      return { ok: true, id, txHash, amountEth };
+    }
     return request(baseUrl, `/wagers/${encodeURIComponent(id)}/deposit`, {
       method: "POST",
       headers: authHeaders(),
@@ -247,16 +332,25 @@ export function createApiClient(baseUrl = BASE_URL) {
   // PUBLIC_INTERFACE
   async function confirmWager({ id }) {
     /** Confirm both deposits and mark as ready/in-progress. POST /wagers/:id/confirm */
+    if (IS_API_MOCK_MODE) {
+      return { ok: true, id, status: 'ready' };
+    }
     return request(baseUrl, `/wagers/${encodeURIComponent(id)}/confirm`, { method: "POST", headers: authHeaders(), body: {} });
   }
   // PUBLIC_INTERFACE
   async function cancelWager({ id, reason }) {
     /** Cancel a wager before completion. POST /wagers/:id/cancel */
+    if (IS_API_MOCK_MODE) {
+      return { ok: true, id, status: 'cancelled', reason };
+    }
     return request(baseUrl, `/wagers/${encodeURIComponent(id)}/cancel`, { method: "POST", headers: authHeaders(), body: { reason } });
   }
   // PUBLIC_INTERFACE
   async function postWagerResult({ id, result, proof }) {
     /** Post final match result to settle escrow. POST /wagers/:id/result */
+    if (IS_API_MOCK_MODE) {
+      return { ok: true, id, result, settledAt: new Date().toISOString() };
+    }
     return request(baseUrl, `/wagers/${encodeURIComponent(id)}/result`, {
       method: "POST",
       headers: authHeaders(),
@@ -268,11 +362,17 @@ export function createApiClient(baseUrl = BASE_URL) {
   // PUBLIC_INTERFACE
   async function getEscrowConfig() {
     /** Read escrow config (address, chainId, limits). GET /escrow/config */
+    if (IS_API_MOCK_MODE) {
+      return { address: '0x' + 'e'.repeat(40), chainId: 11155111, min: 0.01, max: 1, abi: [] };
+    }
     return request(baseUrl, `/escrow/config`, { method: "GET", headers: authHeaders() });
   }
   // PUBLIC_INTERFACE
   async function getEscrowStatus({ wagerId }) {
     /** Read escrow status for a wager. GET /escrow/:wagerId/status */
+    if (IS_API_MOCK_MODE) {
+      return { wagerId, status: 'deposited', state: 'ready' };
+    }
     return request(baseUrl, `/escrow/${encodeURIComponent(wagerId)}/status`, { method: "GET", headers: authHeaders() });
   }
 
@@ -326,9 +426,9 @@ export async function apiGetGameHistory() {
 }
 
 // PUBLIC_INTERFACE
-export async function apiGetProfiles({ minWager, maxWager } = {}) {
+export async function apiGetProfiles({ minWager, maxWager, cursor } = {}) {
   /** Fetch list of profiles. Optional filter. Wrapper for getProfiles(). */
-  return defaultClient.getProfiles({ minWager, maxWager });
+  return defaultClient.getProfiles({ minWager, maxWager, cursor });
 }
 
 // PUBLIC_INTERFACE

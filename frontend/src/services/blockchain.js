@@ -10,6 +10,7 @@ import { ethers } from 'ethers';
  * - REACT_APP_ESCROW_ADDRESS: string (required for deposit)
  * - REACT_APP_CHAIN_ID: string|number (optional; UI may warn on wrong network)
  * - REACT_APP_BLOCK_EXPLORER_BASE: string (optional; for tx links)
+ * - REACT_APP_DRY_RUN_ESCROW: "true" to simulate deposit with fake tx hash
  *
  * ABI:
  * - Placeholder assumes a deposit(uint256 wagerId) payable method.
@@ -29,6 +30,9 @@ function readEnv(key) {
     return undefined;
   }
 }
+
+// PUBLIC_INTERFACE
+export const IS_DRY_RUN_ESCROW = String(readEnv('REACT_APP_DRY_RUN_ESCROW') || '').toLowerCase() === 'true';
 
 /** PUBLIC_INTERFACE */
 export function getEnv() {
@@ -174,16 +178,22 @@ export class BlockchainClient {
    * deposit
    * Send a deposit transaction to the escrow contract.
    *
-   * TODO: Confirm final ABI, method name, and parameter types with on-chain contract.
+   * In dry-run mode, this simulates a tx and resolves after a short delay.
    *
    * @param {Object} params
    * @param {string|number} params.wagerId
    * @param {number|string} params.amountEth
    * @param {Object=} params.options  Additional tx options
-   * @returns {Promise<{ txHash: string, receipt?: any }>}
+   * @returns {Promise<{ txHash: string, receipt?: any, dryRun?: boolean }>}
    */
   async deposit({ wagerId, amountEth, options } = {}) {
     /** This is a public function. */
+    if (IS_DRY_RUN_ESCROW) {
+      const txHash = `0xdryrun${Date.now().toString(16).padStart(58, '0')}`;
+      await new Promise((r) => setTimeout(r, 800));
+      return { txHash, receipt: undefined, dryRun: true };
+    }
+
     if (!this.signer) {
       throw new Error('No signer found. Please connect your wallet.');
     }
@@ -196,7 +206,6 @@ export class BlockchainClient {
     // Instantiate contract and attempt gas estimation (optional).
     const contract = new ethers.Contract(this.escrowAddress, this.escrowAbi, this.signer);
     try {
-      // TODO: uncomment and adjust parameter order if estimation is desired and ABI is confirmed.
       // await contract.estimateGas.deposit(numericWagerId, { value, ...(options || {}) });
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -291,7 +300,7 @@ export function warnIfIncompatibleChain(currentChainId) {
  * Backward-compatible helper kept for existing imports.
  * Delegates to a transient BlockchainClient instance.
  * @param {{ signer: ethers.Signer, matchId: string|number, amountEth: number|string, escrowAddress?: string, escrowAbi?: any[] }} params
- * @returns {Promise<{txHash: string, receipt?: any}>}
+ * @returns {Promise<{txHash: string, receipt?: any, dryRun?: boolean}>}
  */
 export async function sendEscrowDeposit({ signer, matchId, amountEth, escrowAddress = readEnv('REACT_APP_ESCROW_ADDRESS'), escrowAbi = DEFAULT_ESCROW_ABI }) {
   /** This is a public function. */
