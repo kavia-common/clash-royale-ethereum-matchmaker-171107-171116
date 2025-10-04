@@ -58,3 +58,10 @@ export const selectCrAccount = (state) => state?.crAccount?.data || null;
  * @param {any} state
  */
 export const selectWagerFilter = (state) => state?.filters?.wager || { min: 0.01, max: 5.0 };
+
+/**
+ * PUBLIC_INTERFACE
+ * selectIsWalletVerified
+ * @param {any} state
+ */
+export const selectIsWalletVerified = (state) => !!(state?.authSession?.wallet?.verified);

@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
-import { useAppDispatch } from '../state/store';
-import { setAuthWallet } from '../state/actions';
+import { useAppDispatch, useAppSelector } from '../state/store';
+import { setAuthWallet, walletVerified } from '../state/actions';
 import apiClient from '../services/api';
-import { useAppSelector } from '../state/store';
 import { selectCrAccount } from '../state/selectors';
-import { Banner } from './ui';
+import { Banner, InlineError } from './ui';
 
 /**
  * WalletStatus
@@ -92,10 +91,11 @@ export default function WalletStatus() {
     }
     setVerifying(true);
     try {
+      // 1) Get nonce from backend (mock mode returns deterministic string)
       const nonceResp = await apiClient.getWalletNonce(address);
       const nonce = nonceResp?.nonce || String(Math.floor(Math.random() * 1e9));
 
-      // Compute decimal chain id (supports hex string like 0x1)
+      // 2) Build a simple SIWE-like message to sign
       let chainNumeric = '';
       if (chainId) {
         chainNumeric =
@@ -103,9 +103,7 @@ export default function WalletStatus() {
             ? String(parseInt(chainId, 16))
             : String(chainId);
       }
-
       const issuedAt = new Date().toISOString();
-      // Minimal SIWE-like message. We keep it simple for signMessage but include the nonce and domain.
       const message = [
         'Sign-In With Ethereum',
         '',
@@ -121,28 +119,33 @@ export default function WalletStatus() {
         .filter(Boolean)
         .join('\n');
 
-      // Sign with the current signer
+      // 3) Request signature from wallet
       const signature = await signer.signMessage(message);
 
-      // Verify via backend (assumed cookie-based session)
-      const res = await apiClient.verifyWalletSignature({ address, signature });
-      if (res?.ok || res?.user) {
+      // 4) Send for verification
+      const res = await apiClient.verifyWalletSignature({ address, signature, nonce });
+      if (res?.ok || res?.user || res?.token) {
         setVerified(true);
+        // Persist in global store as well
+        dispatch(walletVerified(address));
+        // Clear any transient error
+        setLocalError('');
       } else {
         setLocalError('Verification failed. Please try again.');
+        setVerified(false);
       }
     } catch (e) {
       const msg = e?.message || 'Verification failed.';
-      // Map some common issues to friendly messages
-      if (msg.toLowerCase().includes('user denied') || msg.toLowerCase().includes('rejected')) {
+      if (/user denied|rejected/i.test(msg.toLowerCase())) {
         setLocalError('Signature was rejected.');
       } else {
         setLocalError(msg);
       }
+      setVerified(false);
     } finally {
       setVerifying(false);
     }
-  }, [address, chainId, domain, origin, isConnected, signer]);
+  }, [address, chainId, domain, origin, isConnected, signer, dispatch]);
 
   const wrongNetworkHint = useMemo(() => {
     const expected = process.env.REACT_APP_CHAIN_ID;
@@ -180,12 +183,7 @@ export default function WalletStatus() {
 
       {(error || localError || wrongNetworkHint) && (
         <div style={{ minWidth: 0 }}>
-          {/* Use reusable Banner; type 'error' enforces role='alert' */}
           <span style={{ display: 'inline-block' }}>
-            {/*
-              We avoid importing heavy CSS; inline style + Banner provides consistent UI.
-              Wrapping in span keeps layout impact minimal next to buttons.
-            */}
             <Banner type="error">
               {error || localError || wrongNetworkHint}
             </Banner>
@@ -221,7 +219,7 @@ export default function WalletStatus() {
                 aria-label="Verify Wallet Signature"
                 title="Verify to establish a session"
               >
-                Verify
+                {verifying ? 'Verifying…' : 'Verify'}
               </button>
             )}
             <button

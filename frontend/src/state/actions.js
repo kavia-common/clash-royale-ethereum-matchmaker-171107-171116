@@ -116,3 +116,15 @@ export const setWagerFilter = (payload) => ({
   type: 'FILTER_WAGER_SET',
   payload,
 });
+
+/**
+ * PUBLIC_INTERFACE
+ * walletVerified
+ * Mark wallet as verified in authSession slice.
+ * @param {string} address
+ */
+export const walletVerified = (address) => ({
+  /** This is a public function. */
+  type: 'WALLET_VERIFIED',
+  payload: { address },
+});

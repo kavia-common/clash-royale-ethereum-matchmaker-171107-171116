@@ -103,6 +103,22 @@ export function rootReducer(state = initialState, action) {
         },
       };
     }
+    case 'WALLET_VERIFIED': {
+      // Only set verified when addresses match current wallet (defensive)
+      const currentAddr = state?.authSession?.wallet?.address || '';
+      const targetAddr = payload?.address || '';
+      const match = currentAddr && targetAddr && currentAddr.toLowerCase() === targetAddr.toLowerCase();
+      return {
+        ...state,
+        authSession: {
+          ...state.authSession,
+          wallet: {
+            ...(state.authSession?.wallet || {}),
+            verified: match ? true : state.authSession?.wallet?.verified || false,
+          },
+        },
+      };
+    }
     case 'SLICE_LOADING_SET': {
       return setSliceLoading(state, payload?.slice, payload?.loading);
     }
