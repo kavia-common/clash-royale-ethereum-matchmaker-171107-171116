@@ -8,6 +8,7 @@ const palette = {
 };
 
 /**
+ * PUBLIC_INTERFACE
  * Banner
  * Consistent status and error messaging with optional dismiss action.
  *

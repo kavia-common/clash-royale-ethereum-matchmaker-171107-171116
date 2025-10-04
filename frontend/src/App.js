@@ -13,8 +13,10 @@ import GameHistoryPage from './pages/GameHistoryPage';
 import SettingsModal from './components/SettingsModal';
 import CharacterFeatureHero from './components/CharacterFeatureHero';
 import './components/CharacterFeatureHero.css';
-import { apiGetLiveWagers, apiGetGameHistory } from './services/api';
+import { apiGetLiveWagers, apiGetGameHistory, IS_API_MOCK_MODE } from './services/api';
 import { useAppSelector } from './state/store';
+import Banner from './components/ui/Banner';
+import { isDryRun } from './services/blockchain';
 import { selectAuthWallet, selectCrAccount, selectWagerFilter } from './state/selectors';
 
 /**
@@ -32,6 +34,10 @@ function App() {
   const [linkOpen, setLinkOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Non-blocking environment banners
+  const [showMockApiBanner, setShowMockApiBanner] = useState(IS_API_MOCK_MODE);
+  const [showDryRunBanner, setShowDryRunBanner] = useState(isDryRun());
 
   // Clash Royale dashboard open flag, profile is from global store (/cr/me)
   const [crOpen, setCrOpen] = useState(false);
@@ -86,6 +92,19 @@ function App() {
 
   return (
     <div className="App" style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+      {/* Environment banners (non-blocking) */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 100 }}>
+        {showMockApiBanner && (
+          <Banner type="info" onClose={() => setShowMockApiBanner(false)} style={{ borderRadius: 0 }}>
+            Mock API mode: REACT_APP_API_URL not set. Using in-memory data for development.
+          </Banner>
+        )}
+        {showDryRunBanner && (
+          <Banner type="warning" onClose={() => setShowDryRunBanner(false)} style={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
+            Dry-run escrow mode: deposits are simulated. Set REACT_APP_ESCROW_ADDRESS and/or disable REACT_APP_DRY_RUN_ESCROW to send real transactions.
+          </Banner>
+        )}
+      </div>
       {/* Render the main hero and list only on the home route */}
       {isHome && (
         <>

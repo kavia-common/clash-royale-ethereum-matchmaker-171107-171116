@@ -31,8 +31,14 @@ function readEnv(key) {
   }
 }
 
-// PUBLIC_INTERFACE
-export const IS_DRY_RUN_ESCROW = String(readEnv('REACT_APP_DRY_RUN_ESCROW') || '').toLowerCase() === 'true';
+/**
+ * Determine dry-run mode from env:
+ * - If REACT_APP_DRY_RUN_ESCROW is explicitly "true" => dry-run
+ * - Else if escrow address is missing/empty => dry-run
+ */
+const _explicitDryRun = String(readEnv('REACT_APP_DRY_RUN_ESCROW') || '').toLowerCase() === 'true';
+const _escrowAddrForDryRun = (readEnv('REACT_APP_ESCROW_ADDRESS') || '').trim();
+export const IS_DRY_RUN_ESCROW = _explicitDryRun || !_escrowAddrForDryRun;
 
 /** PUBLIC_INTERFACE */
 export function getEnv() {
@@ -263,12 +269,27 @@ export function buildAddressUrl(address) {
   return `${sanitizedBase(base)}/address/${address}`;
 }
 
+/** PUBLIC_INTERFACE
+ * isDryRun
+ * Return true when escrow logic is in dry-run mode.
+ */
+export function isDryRun() {
+  return IS_DRY_RUN_ESCROW === true;
+}
+
 // PUBLIC_INTERFACE
 export function buildTxUrl(txHash) {
   /** Builds a block explorer URL for a transaction hash. Returns empty string if inputs are missing. */
   const base = getExplorerBase();
   if (!base || !txHash) return '';
   return `${sanitizedBase(base)}/tx/${txHash}`;
+}
+
+// PUBLIC_INTERFACE
+export function getExplorerTxUrl(hash) {
+  /** Returns a complete explorer URL for a tx hash if BLOCK_EXPLORER_BASE is set. Otherwise, returns undefined. */
+  const url = buildTxUrl(hash);
+  return url || undefined;
 }
 
 // PUBLIC_INTERFACE
