@@ -1,4 +1,5 @@
 //
+//
 // services/api.js
 //
 // PUBLIC_INTERFACE
@@ -14,7 +15,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Deterministic pseudo-random generator for stable mock outputs */
 function mulberry32(seed) {
-  let t = seed + 0x6D2B79F5;
+  let t = seed + 0x6d2b79f5;
   return function () {
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
@@ -95,7 +96,7 @@ let mockHistory = [
  * PUBLIC_INTERFACE
  * api - returns an API client. If API_URL not provided, returns a mocked client.
  */
-export function api(fetchImpl = fetch) {
+function api(fetchImpl = fetch) {
   if (!API_URL) {
     const rng = mulberry32(42);
     return {
@@ -253,3 +254,23 @@ export function api(fetchImpl = fetch) {
     },
   };
 }
+
+// Top-level exports (keep at end to avoid non-top-level export issues)
+export { api };
+
+// Convenience named helpers to match existing imports in components/tests
+export const apiGetCRMe = (fetchImpl) => api(fetchImpl).getCRMe();
+export const apiGetProfiles = (fetchImpl) => api(fetchImpl).getProfiles();
+export const apiInitWager = (body, fetchImpl) => api(fetchImpl).initWager(body);
+export const apiNotifyDeposit = (body, fetchImpl) => api(fetchImpl).notifyDeposit(body);
+export const apiGetWagerStatus = (args, fetchImpl) => api(fetchImpl).getWagerStatus(args);
+export const apiGetLive = (fetchImpl) => api(fetchImpl).getLive();
+// Alias used by some components/tests
+export const apiGetLiveWagers = (fetchImpl) => api(fetchImpl).getLive();
+export const apiGetHistory = (fetchImpl) => api(fetchImpl).getHistory();
+export const apiAuthNonce = (fetchImpl) => api(fetchImpl).auth.nonce();
+export const apiAuthVerify = (body, fetchImpl) => api(fetchImpl).auth.verify(body);
+
+// Default export shim for compatibility: returns the api client instance created with default fetch.
+const apiClient = (fetchImpl) => api(fetchImpl);
+export default apiClient;
