@@ -102,7 +102,7 @@ export default function App() {
             src={logoAsset}
             alt="Clash Royale Ethereum Matchmaker logo"
             className="app-logo"
-            height={36}
+            height={48}
           />
           <span className="brand-text" aria-label="Ocean Matchmaker">Ocean Matchmaker</span>
         </div>
