@@ -8,6 +8,7 @@ import GameHistoryDashboard from '../components/GameHistoryDashboard';
 import Banner from '../components/ui/Banner';
 import '../App.css';
 import '../theme.css';
+import BadgeImg from '../assets/WAGER_HISTORY_BADGE.png';
 
 /**
  * PUBLIC_INTERFACE
@@ -123,9 +124,17 @@ const AllInOnePage = () => {
             {/* Profiles and Actions */}
             <div className="card card-surface shadow-sm rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-text">Available Players</h2>
-                <div className="text-sm text-gray-500">
-                  Wager: {wagerFilter.min} - {wagerFilter.max} ETH
+                <h2 className="text-lg font-semibold text-text">
+                  Available Players
+                </h2>
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <span className="badge-stack-sm">Wager: {wagerFilter.min} - {wagerFilter.max} ETH</span>
+                  <img
+                    src={BadgeImg}
+                    alt="Cash Royal badge"
+                    className="badge-inline"
+                    height={28}
+                  />
                 </div>
               </div>
               <ProfileList
@@ -138,7 +147,15 @@ const AllInOnePage = () => {
 
             {/* Game History */}
             <div className="card card-surface shadow-sm rounded-lg p-4">
-              <h2 className="text-lg font-semibold text-text mb-2">Game History</h2>
+              <div className="flex items-center gap-2 mb-2">
+                <h2 className="text-lg font-semibold text-text m-0">Game History</h2>
+                <img
+                  src={BadgeImg}
+                  alt="Cash Royal badge"
+                  className="badge-inline badge-inline--sm badge-stack-sm"
+                  height={24}
+                />
+              </div>
               <GameHistoryDashboard />
             </div>
           </section>

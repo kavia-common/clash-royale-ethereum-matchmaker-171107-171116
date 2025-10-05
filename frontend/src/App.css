@@ -64,6 +64,30 @@
   }
 }
 
+/* Badge inline utility for small inline images near headers/controls */
+.badge-inline {
+  display: inline-block;
+  vertical-align: middle;
+  height: 28px; /* default for wager area */
+  width: auto;
+  max-width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
+}
+
+/* Smaller variant for tighter headers (e.g., Game History) */
+.badge-inline--sm {
+  height: 24px;
+}
+
+/* Responsive behavior: on narrow screens, stack below the label with space */
+@media (max-width: 640px) {
+  .badge-stack-sm {
+    display: block;
+    margin-top: 6px;
+  }
+}
+
 /* Focus visibility */
 button:focus-visible,
 input:focus-visible {
