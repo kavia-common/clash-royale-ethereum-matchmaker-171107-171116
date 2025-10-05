@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GameHistoryDashboard from '../components/GameHistoryDashboard';
 import { apiGetLiveWagers, apiGetGameHistory } from '../services/api';
+import HeaderImg from '../assets/GAME_HISTORY_HEADER.png';
 
 // PUBLIC_INTERFACE
 export default function GameHistoryPage({ prefetching, initialLive, initialHistory }) {
@@ -61,12 +62,28 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
   };
 
   return (
-    <div style={styles.pageWrap}>
+    <div className="game-history-bg" style={styles.pageWrap}>
+      {/* Visual header with background image and overlay for readability */}
+      <section aria-label="Game History Header" style={styles.heroWrap}>
+        <img
+          src={HeaderImg}
+          alt="Game History Header"
+          style={styles.heroImg}
+        />
+        <div style={styles.heroOverlay} aria-hidden="true" />
+        <div style={styles.heroContent}>
+          <h1 style={styles.heroTitle}>Game History</h1>
+          <p style={styles.heroSubtitle}>
+            Track live wagers and review your past matches, win/loss, and profit.
+          </p>
+        </div>
+      </section>
+
       <header style={styles.pageHeader}>
         <div>
-          <h1 style={styles.title}>Game History</h1>
+          <h2 style={styles.title} aria-label="Section: Game History Details">Details</h2>
           <p style={styles.subtitle}>
-            Track live wagers and review your past matches, win/loss, and profit.
+            Live stream activity and actionable betting panel below.
           </p>
         </div>
         <button
@@ -357,8 +374,57 @@ function formatTime(ts) {
 const styles = {
   pageWrap: {
     minHeight: '100vh',
+    // base color under the background image
     background: '#f9fafb',
     paddingBottom: 40,
+  },
+  // Hero header section
+  heroWrap: {
+    position: 'relative',
+    width: '100%',
+    minHeight: 200,
+    maxHeight: 320,
+    height: '24vh',
+    overflow: 'hidden',
+    borderBottom: '1px solid #E5E7EB',
+  },
+  heroImg: {
+    width: '100%',
+    height: '100%',
+    minHeight: 200,
+    objectFit: 'cover',
+    display: 'block',
+  },
+  heroOverlay: {
+    position: 'absolute',
+    inset: 0,
+    background:
+      'linear-gradient(to bottom, rgba(17,24,39,0.55), rgba(17,24,39,0.25))',
+    pointerEvents: 'none',
+  },
+  heroContent: {
+    position: 'absolute',
+    inset: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    maxWidth: 1180,
+    margin: '0 auto',
+    padding: '0 16px 16px',
+  },
+  heroTitle: {
+    margin: 0,
+    color: '#FFFFFF',
+    fontWeight: 900,
+    fontSize: 32,
+    textShadow: '0 2px 6px rgba(0,0,0,0.3)',
+  },
+  heroSubtitle: {
+    marginTop: 6,
+    color: '#E5E7EB',
+    fontSize: 14,
+    textShadow: '0 1px 4px rgba(0,0,0,0.25)',
   },
   pageHeader: {
     maxWidth: 1180,

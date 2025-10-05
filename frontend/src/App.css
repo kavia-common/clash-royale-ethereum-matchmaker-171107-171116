@@ -29,6 +29,22 @@
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Game History page background using header image + gradient overlay */
+.game-history-bg {
+  position: relative;
+  background-image: linear-gradient(rgba(17,24,39,0.35), rgba(17,24,39,0.15)), url('./assets/GAME_HISTORY_HEADER.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Ensure content cards remain readable on image background */
+.game-history-bg .card,
+.game-history-bg [style*="background: #ffffff"],
+.game-history-bg [style*="background:#ffffff"] {
+  background: #ffffff !important;
+}
+
 .App-link {
   color: var(--text-secondary);
   transition: color 0.3s ease;
