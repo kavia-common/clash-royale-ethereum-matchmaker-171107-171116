@@ -88,3 +88,33 @@ Refer to the workspace README’s Backend Roadmap for the concise execution plan
 - wagers lifecycle with escrow + indexer/webhooks,
 - security, docker‑compose dev setup, suggested stack,
 - endpoint list, env var mapping, and next steps.
+
+## Optional Express-based Mock API Server
+
+You can optionally run a standalone mock backend that supports multi-user state beyond the built-in frontend mock mode.
+
+- Start the server:
+  - npm run mock:api
+  - It listens on http://localhost:4000
+
+- Point the frontend at it:
+  - macOS/Linux: export REACT_APP_API_URL=http://localhost:4000 && npm start
+  - Windows (PowerShell): $env:REACT_APP_API_URL="http://localhost:4000"; npm start
+
+- Implemented endpoints (see INTEGRATION_NOTES.md for shapes/mapping):
+  - POST /auth/nonce
+  - POST /auth/verify
+  - GET /profiles
+  - GET /cr/me
+  - POST /cr/link
+  - DELETE /cr/link
+  - POST /wagers/initiate
+  - POST /wagers/:id/deposit-notify
+  - POST /wagers/:id/confirm
+  - GET /wagers/live
+  - GET /wagers/history
+  - GET /wagers/:id/status
+
+Notes:
+- This is opt-in and does not replace the in-frontend mock mode.
+- Data is in-memory; restart resets state.

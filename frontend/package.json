@@ -7,10 +7,13 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.0.0",
-    "react-scripts": "^5.0.1"
+    "react-scripts": "^5.0.1",
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
   },
   "scripts": {
     "start": "react-scripts start",
+    "mock:api": "node ./mock/server.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
