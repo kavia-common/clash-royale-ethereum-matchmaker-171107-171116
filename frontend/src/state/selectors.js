@@ -1,103 +1,21 @@
 //
-// Selectors for global store
+// state/selectors.js
+//
+// PUBLIC_INTERFACE
+// Selector helpers for accessing app state.
 //
 
-/**
- * PUBLIC_INTERFACE
- * selectAuthWallet
- * @param {any} state
- */
-export const selectAuthWallet = (state) => state?.authSession?.wallet || {};
+// PUBLIC_INTERFACE
+export const selectProfiles = (state) => state.profiles || [];
 
-/**
- * PUBLIC_INTERFACE
- * selectIsWalletConnected
- * @param {any} state
- */
-export const selectIsWalletConnected = (state) => !!(state?.authSession?.wallet?.isConnected);
+// PUBLIC_INTERFACE
+export const selectWagers = (state) => state.wagers || [];
 
-/**
- * PUBLIC_INTERFACE
- * selectProfiles
- * @param {any} state
- */
-export const selectProfiles = (state) => state?.profiles?.items || [];
+// PUBLIC_INTERFACE
+export const selectHistory = (state) => state.history || [];
 
-/**
- * PUBLIC_INTERFACE
- * selectWagersLive
- * @param {any} state
- */
-export const selectWagersLive = (state) => state?.wagers?.live || [];
+// PUBLIC_INTERFACE
+export const selectLoading = (state) => state.ui?.loading || false;
 
-/**
- * PUBLIC_INTERFACE
- * selectWagersHistory
- * @param {any} state
- */
-export const selectWagersHistory = (state) => state?.wagers?.history || [];
-
-/**
- * PUBLIC_INTERFACE
- * selectEscrowConfig
- * @param {any} state
- */
-export const selectEscrowConfig = (state) => state?.escrow?.config || null;
-
-/**
- * PUBLIC_INTERFACE
- * selectEscrowDepositByWager
- * @param {any} state
- * @param {string|number} wagerId
- */
-export const selectEscrowDepositByWager = (state, wagerId) =>
-  (state?.escrow?.deposits && state.escrow.deposits[wagerId]) || null;
-
-// Placeholder exports to flesh out later steps
-/**
- * PUBLIC_INTERFACE
- * selectCrAccount
- * @param {any} state
- */
-export const selectCrAccount = (state) => state?.crAccount?.data || null;
-
-/**
- * PUBLIC_INTERFACE
- * selectCrAccountLoading
- * @param {any} state
- */
-export const selectCrAccountLoading = (state) => !!(state?.crAccount?.loading);
-
-/**
- * PUBLIC_INTERFACE
- * selectCrAccountError
- * @param {any} state
- */
-export const selectCrAccountError = (state) => state?.crAccount?.error || '';
-
-/**
- * PUBLIC_INTERFACE
- * selectCrAccountLinked
- * Returns true if a Clash Royale account is linked (data available).
- * @param {any} state
- */
-export const selectCrAccountLinked = (state) => {
-  const data = state?.crAccount?.data;
-  if (!data) return false;
-  // Accept either flat { tag, name } or nested { player: { tag } }
-  return Boolean(data?.tag || data?.player?.tag);
-};
-
-/**
- * PUBLIC_INTERFACE
- * selectWagerFilter
- * @param {any} state
- */
-export const selectWagerFilter = (state) => state?.filters?.wager || { min: 0.01, max: 5.0 };
-
-/**
- * PUBLIC_INTERFACE
- * selectIsWalletVerified
- * @param {any} state
- */
-export const selectIsWalletVerified = (state) => !!(state?.authSession?.wallet?.verified);
+// PUBLIC_INTERFACE
+export const selectError = (state) => state.ui?.error || null;

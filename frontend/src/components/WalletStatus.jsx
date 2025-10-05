@@ -1,318 +1,292 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useEthereumWallet, truncateAddress } from '../hooks/useEthereumWallet';
-import { useAppDispatch, useAppSelector } from '../state/store';
-import { setAuthWallet, walletVerified } from '../state/actions';
-import apiClient from '../services/api';
-import { selectCrAccount } from '../state/selectors';
-import { Banner } from './ui';
+import React from "react";
+import { useEthereumWallet } from "../hooks/useEthereumWallet";
+import Banner from "./ui/Banner";
 
 /**
- * WalletStatus
- * Displays connect/disconnect actions and status with Ocean Professional styling.
- * Provides SIWE-style verification to establish a session with the backend.
+ * PUBLIC_INTERFACE
+ * WalletStatus shows wallet account and connect/disconnect controls.
  */
-// PUBLIC_INTERFACE
 export default function WalletStatus() {
-  /** This is a public function. */
-  const dispatch = useAppDispatch();
-  const {
-    address,
-    isConnected,
-    connecting,
-    error,
-    connect,
-    disconnect,
-    theme,
-    chainId,
-    signer,
-    provider,
-    networkName,
-  } = useEthereumWallet();
-
-  // Local UI state to represent verification status and transient messages
-  const [verified, setVerified] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [localError, setLocalError] = useState('');
-  const crAccount = useAppSelector(selectCrAccount);
-
-  // Sync wallet state into global store's authSession slice (no-op if provider isn't mounted)
-  useEffect(() => {
-    dispatch(
-      setAuthWallet({
-        address,
-        chainId,
-        isConnected,
-        connecting,
-        error: error || localError,
-        verified,
-        networkName: networkName || '',
-      })
-    );
-  }, [dispatch, address, chainId, isConnected, connecting, error, localError, verified, networkName]);
-
-  // Reset verified state if address changes or disconnects
-  useEffect(() => {
-    if (!isConnected) {
-      setVerified(false);
-      setVerifying(false);
-      setLocalError('');
-    }
-  }, [isConnected, address]);
-
-  const domain = useMemo(() => {
-    if (typeof window === 'undefined') return 'localhost';
-    try {
-      return window.location.host || 'localhost';
-    } catch {
-      return 'localhost';
-    }
-  }, []);
-
-  const origin = useMemo(() => {
-    if (typeof window === 'undefined') return 'http://localhost';
-    try {
-      return window.location.origin || 'http://localhost';
-    } catch {
-      return 'http://localhost';
-    }
-  }, []);
-
-  // PUBLIC_INTERFACE
-  const handleVerify = useCallback(async () => {
-    /** Trigger SIWE-style flow: nonce -> sign -> verify */
-    setLocalError('');
-    if (!isConnected || !address) {
-      setLocalError('Connect your wallet first.');
-      return;
-    }
-    if (!signer) {
-      setLocalError('No signer available. Please reconnect your wallet.');
-      return;
-    }
-    setVerifying(true);
-    try {
-      // 1) Get nonce from backend (mock mode returns deterministic string)
-      const nonceResp = await apiClient.getWalletNonce(address);
-      const nonce = nonceResp?.nonce || String(Math.floor(Math.random() * 1e9));
-
-      // 2) Build a simple SIWE-like message to sign
-      let chainNumeric = '';
-      if (chainId) {
-        chainNumeric =
-          typeof chainId === 'string' && chainId.startsWith('0x')
-            ? String(parseInt(chainId, 16))
-            : String(chainId);
-      }
-      const issuedAt = new Date().toISOString();
-      const message = [
-        'Sign-In With Ethereum',
-        '',
-        `Domain: ${domain}`,
-        `Address: ${address}`,
-        `Statement: Authenticate to CR Matchmaker`,
-        `URI: ${origin}`,
-        'Version: 1',
-        chainNumeric ? `Chain ID: ${chainNumeric}` : undefined,
-        `Nonce: ${nonce}`,
-        `Issued At: ${issuedAt}`,
-      ]
-        .filter(Boolean)
-        .join('\n');
-
-      // 3) Request signature from wallet
-      const signature = await signer.signMessage(message);
-
-      // 4) Send for verification
-      const res = await apiClient.verifyWalletSignature({ address, signature, nonce });
-      if (res?.ok || res?.user || res?.token) {
-        setVerified(true);
-        // Persist in global store as well
-        dispatch(walletVerified(address));
-        // Clear any transient error
-        setLocalError('');
-      } else {
-        setLocalError('Verification failed. Please try again.');
-        setVerified(false);
-      }
-    } catch (e) {
-      const msg = e?.message || 'Verification failed.';
-      if (/user denied|rejected/i.test(msg.toLowerCase())) {
-        setLocalError('Signature was rejected.');
-      } else {
-        setLocalError(msg);
-      }
-      setVerified(false);
-    } finally {
-      setVerifying(false);
-    }
-  }, [address, chainId, domain, origin, isConnected, signer, dispatch]);
-
-  const wrongNetworkHint = useMemo(() => {
-    const expected = process.env.REACT_APP_CHAIN_ID;
-    if (!expected || !chainId) return '';
-    const normalize = (v) => {
-      if (typeof v === 'string' && v.startsWith('0x')) return String(parseInt(v, 16));
-      return String(v);
-    };
-    return normalize(expected) !== normalize(chainId) ? 'Wrong network selected.' : '';
-  }, [chainId]);
-
-  const connectDisabled = connecting;
-  const verifyDisabled = verifying || !isConnected || verified;
+  const { account, isCorrectNetwork, connecting, error, connect, disconnect, HAS_API } =
+    useEthereumWallet();
 
   return (
-    <div style={styles.container(theme)} aria-live="polite">
-      <div style={styles.statusRow}>
-        {isConnected ? (
-          <span style={styles.connectedBadge(theme)} title={address}>
-            ● Connected{verified ? ' · Verified' : ' · Unverified'}{crAccount ? ' · Linked' : ''}
-          </span>
-        ) : (
-          <span style={styles.disconnectedBadge}>○ Disconnected</span>
-        )}
-        {/* Always render the wallet-address span for deterministic tests */}
-        <span style={styles.address(theme)} data-testid="wallet-address">
-          {isConnected && address ? truncateAddress(address) : ''}
-        </span>
-        {networkName ? (
-          <span aria-label="network name" style={{ color: '#6B7280', fontSize: 12 }}>
-            {networkName}
-          </span>
-        ) : null}
-      </div>
-
-      {(error || localError || wrongNetworkHint) && (
-        <div style={{ minWidth: 0 }}>
-          <span style={{ display: 'inline-block' }}>
-            <Banner type="error">
-              {error || localError || wrongNetworkHint}
-            </Banner>
-          </span>
-        </div>
+    <div className="wallet-status">
+      {!HAS_API && (
+        <Banner tone="info" title="Mock API Active">
+          No backend configured. Using mock data for preview.
+        </Banner>
       )}
-
-      <div style={styles.actions}>
-        {!isConnected ? (
-          <button
-            type="button"
-            onClick={connect}
-            disabled={connectDisabled}
-            style={{
-              ...styles.primaryButton(theme),
-              ...(connectDisabled ? styles.buttonDisabled : {}),
-            }}
-            aria-label="Connect Ethereum Wallet"
-          >
-            Connect Ethereum Wallet
-          </button>
-        ) : (
-          <>
-            {!verified && (
-              <button
-                type="button"
-                onClick={handleVerify}
-                disabled={verifyDisabled}
-                style={{
-                  ...styles.secondaryButton,
-                  ...(verifyDisabled ? styles.buttonDisabled : {}),
-                }}
-                aria-label="Verify Wallet Signature"
-                title="Verify to establish a session"
-              >
-                {verifying ? 'Verifying…' : 'Verify'}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={disconnect}
-              style={styles.secondaryButton}
-              aria-label="Disconnect Ethereum Wallet"
-            >
-              Disconnect Ethereum Wallet
+      {process.env.REACT_APP_DRY_RUN_ESCROW === "true" ||
+      !process.env.REACT_APP_ESCROW_ADDRESS ? (
+        <Banner tone="warning" title="Dry-run Escrow">
+          Deposits will be simulated. No real funds are used.
+        </Banner>
+      ) : null}
+      <div className="card">
+        <div className="row space-between">
+          <strong>Wallet</strong>
+          {account ? (
+            <button className="btn" onClick={disconnect}>
+              Disconnect
             </button>
-          </>
-        )}
+          ) : (
+            <button className="btn-primary" onClick={connect} disabled={connecting}>
+              {connecting ? "Connecting…" : "Connect"}
+            </button>
+          )}
+        </div>
+        <div className="mt-2">
+          {account ? (
+            <>
+              <div>Account: {account}</div>
+              <div>
+                Network: {isCorrectNetwork ? "Supported" : "Wrong network (use target chain)"}
+              </div>
+            </>
+          ) : (
+            <div>No wallet connected.</div>
+          )}
+        </div>
+        {error && <div className="error mt-2">{String(error.message || error)}</div>}
       </div>
     </div>
   );
 }
+```
 
-const styles = {
-  container: (theme) => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    background: '#ffffff',
-    border: '1px solid #E5E7EB',
-    padding: '8px 10px',
-    borderRadius: 12,
-    boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-    color: theme.text,
-  }),
-  statusRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    minWidth: 140,
-  },
-  connectedBadge: (theme) => ({
-    display: 'inline-block',
-    color: theme.primary,
-    fontWeight: 700,
-    fontSize: 12,
-  }),
-  disconnectedBadge: {
-    display: 'inline-block',
-    color: '#6B7280',
-    fontWeight: 600,
-    fontSize: 12,
-  },
-  address: (theme) => ({
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-    background: '#F3F4F6',
-    border: '1px solid #E5E7EB',
-    color: theme.text,
-    padding: '4px 8px',
-    borderRadius: 8,
-    fontSize: 12,
-  }),
-  error: (theme) => ({
-    color: theme.error,
-    fontSize: 12,
-    padding: '4px 8px',
-    borderRadius: 8,
-    background: '#FEF2F2',
-    border: `1px solid ${theme.error}33`,
-  }),
-  actions: {
-    display: 'flex',
-    gap: 8,
-    marginLeft: 'auto',
-  },
-  primaryButton: (theme) => ({
-    background: theme.primary,
-    color: '#ffffff',
-    border: '1px solid transparent',
-    padding: '8px 12px',
-    borderRadius: 10,
-    cursor: 'pointer',
-    fontWeight: 700,
-    boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
-    transition: 'transform 0.1s ease, filter 0.2s ease',
-  }),
-  secondaryButton: {
-    background: '#F3F4F6',
-    color: '#111827',
-    border: '1px solid #E5E7EB',
-    padding: '8px 12px',
-    borderRadius: 10,
-    cursor: 'pointer',
-    fontWeight: 600,
-  },
-  buttonDisabled: {
-    filter: 'grayscale(0.3)',
-    opacity: 0.7,
-    cursor: 'not-allowed',
-    boxShadow: 'none',
-  },
-};
+Explanation: ProfileList renders profiles with skeletons and empty state; supports onChallenge handler.
+````write file="clash-royale-ethereum-matchmaker-171107-171116/frontend/src/components/ProfileList.jsx"
+import React from "react";
+import Skeleton from "./ui/Skeleton";
+
+/**
+ * PUBLIC_INTERFACE
+ * ProfileList shows list of profiles and allows initiating a challenge.
+ */
+export default function ProfileList({ profiles, loading, onChallenge }) {
+  if (loading) {
+    return (
+      <div className="grid">
+        <Skeleton height={80} />
+        <Skeleton height={80} />
+        <Skeleton height={80} />
+      </div>
+    );
+  }
+  if (!profiles || profiles.length === 0) {
+    return <div className="muted">No profiles found.</div>;
+  }
+  return (
+    <div className="grid">
+      {profiles.map((p) => (
+        <div key={p.id} className="card">
+          <div className="row space-between">
+            <div>
+              <div className="title">{p.name}</div>
+              <div className="muted">
+                {p.crTag} • {p.trophy} trophies • Prefers {p.preferredWagerEth} ETH
+              </div>
+              <div className={p.online ? "badge success" : "badge"}>
+                {p.online ? "Online" : "Offline"}
+              </div>
+            </div>
+            <div>
+              <button className="btn-secondary" onClick={() => onChallenge?.(p)}>
+                Challenge
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+Explanation: DepositsDashboard shows current wagers and actions to open escrow deposit modal. Basic for preview/tests.
+````write file="clash-royale-ethereum-matchmaker-171107-171116/frontend/src/components/DepositsDashboard.jsx"
+import React, { useEffect, useState } from "react";
+import { api } from "../services/api";
+import EscrowModal from "./EscrowModal";
+import Spinner from "./ui/Spinner";
+
+/**
+ * PUBLIC_INTERFACE
+ * DepositsDashboard lists live wagers and allows depositing into escrow.
+ */
+export default function DepositsDashboard() {
+  const [wagers, setWagers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await api().getLive();
+        if (mounted) setWagers(data);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => (mounted = false);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="row">
+        <Spinner /> <span>Loading wagers…</span>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3>Your Wagers</h3>
+      {wagers.length === 0 && <div className="muted">No live wagers.</div>}
+      {wagers.map((w) => (
+        <div key={w.id} className="card row space-between">
+          <div>
+            <div className="title">vs {w.opponent?.name || "Opponent"}</div>
+            <div className="muted">
+              {w.amountEth} ETH • status: {w.status}
+            </div>
+          </div>
+          <div>
+            <button className="btn-primary" onClick={() => setSelected(w)}>
+              Deposit
+            </button>
+          </div>
+        </div>
+      ))}
+      <EscrowModal open={!!selected} onClose={() => setSelected(null)} wager={selected || {}} />
+    </div>
+  );
+}
+```
+
+Explanation: WagerFilter input for filtering by min/max ETH, emitting onChange.
+````write file="clash-royale-ethereum-matchmaker-171107-171116/frontend/src/components/WagerFilter.jsx"
+import React, { useEffect, useState } from "react";
+
+/**
+ * PUBLIC_INTERFACE
+ * WagerFilter allows inputting min/max wager amounts and notifies parent on change.
+ */
+export default function WagerFilter({ onChange }) {
+  const [min, setMin] = useState("");
+  const [max, setMax] = useState("");
+
+  useEffect(() => {
+    const m = parseFloat(min);
+    const M = parseFloat(max);
+    onChange?.({
+      min: isNaN(m) ? null : m,
+      max: isNaN(M) ? null : M,
+    });
+  }, [min, max, onChange]);
+
+  return (
+    <div className="card">
+      <div className="title">Filter by wager (ETH)</div>
+      <div className="row">
+        <label>
+          Min
+          <input
+            type="number"
+            step="0.001"
+            value={min}
+            onChange={(e) => setMin(e.target.value)}
+            placeholder="0.01"
+          />
+        </label>
+        <label>
+          Max
+          <input
+            type="number"
+            step="0.001"
+            value={max}
+            onChange={(e) => setMax(e.target.value)}
+            placeholder="0.10"
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+```
+
+Explanation: GameHistoryPage lists historical matches via api mock; uses simple UI primitives.
+````write file="clash-royale-ethereum-matchmaker-171107-171116/frontend/src/pages/GameHistoryPage.jsx"
+import React, { useEffect, useState } from "react";
+import { api } from "../services/api";
+import Spinner from "../components/ui/Spinner";
+
+/**
+ * PUBLIC_INTERFACE
+ * GameHistoryPage shows previous matches for the user.
+ */
+export default function GameHistoryPage() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await api().getHistory();
+        if (mounted) setItems(data);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => (mounted = false);
+  }, []);
+
+  return (
+    <div>
+      <h2>Game History</h2>
+      {loading ? (
+        <div className="row">
+          <Spinner /> <span>Loading…</span>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="muted">No history found.</div>
+      ) : (
+        <div className="grid">
+          {items.map((h) => (
+            <div key={h.id} className="card">
+              <div className="row space-between">
+                <div className="title">vs {h.opponent}</div>
+                <div className={h.result === "win" ? "badge success" : "badge error"}>
+                  {h.result}
+                </div>
+              </div>
+              <div className="muted">
+                {h.amountEth} ETH • {new Date(h.timestamp).toLocaleString()}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+Explanation: UI primitives - Banner, InlineError, Skeleton, Spinner; align with Ocean Professional theme and accessibility.
+````write file="clash-royale-ethereum-matchmaker-171107-171116/frontend/src/components/ui/Banner.jsx"
+import React from "react";
+
+/**
+ * PUBLIC_INTERFACE
+ * Banner displays contextual information at top of sections.
+ */
+export default function Banner({ tone = "info", title, children }) {
+  return (
+    <div className={`banner banner-${tone}`} role="status" aria-live="polite">
+      {title && <strong className="mr-2">{title}:</strong>} {children}
+    </div>
+  );
+}

@@ -1,330 +1,238 @@
-import { ethers } from 'ethers';
+//
+// services/blockchain.js
+//
+// PUBLIC_INTERFACE
+// Provides blockchain interactions with dry-run support. If REACT_APP_DRY_RUN_ESCROW=true
+// or REACT_APP_ESCROW_ADDRESS is missing, simulate deposits and transaction status.
+//
 
-/**
- * PUBLIC_INTERFACE
- * BlockchainClient
- * A thin wrapper around ethers.js for deposit flows. Reads environment configuration and exposes
- * helpers for provider/network/account access and escrow interactions.
- *
- * Environment:
- * - REACT_APP_ESCROW_ADDRESS: string (required for deposit)
- * - REACT_APP_CHAIN_ID: string|number (optional; UI may warn on wrong network)
- * - REACT_APP_BLOCK_EXPLORER_BASE: string (optional; for tx links)
- * - REACT_APP_DRY_RUN_ESCROW: "true" to simulate deposit with fake tx hash
- *
- * ABI:
- * - Placeholder assumes a deposit(uint256 wagerId) payable method.
- * - TODO: Replace ABI and methods when the escrow contract is finalized. See INTEGRATION_NOTES.md.
- */
+const DRY_RUN =
+  String(process.env.REACT_APP_DRY_RUN_ESCROW || "").toLowerCase() === "true" ||
+  !process.env.REACT_APP_ESCROW_ADDRESS;
 
-/** Minimal placeholder ABI. Update with the real contract ABI. */
-const DEFAULT_ESCROW_ABI = [
-  "function deposit(uint256 wagerId) payable",
-];
+const ESCROW_ADDRESS = process.env.REACT_APP_ESCROW_ADDRESS || null;
 
-/** Normalize reading env in a safe way for CRA. */
-function readEnv(key) {
-  try {
-    return process.env[key];
-  } catch {
-    return undefined;
+// Simple event emitter
+class SimpleEmitter {
+  constructor() {
+    this.l = {};
+  }
+  on(evt, fn) {
+    this.l[evt] = this.l[evt] || [];
+    this.l[evt].push(fn);
+    return () => this.off(evt, fn);
+  }
+  off(evt, fn) {
+    this.l[evt] = (this.l[evt] || []).filter((f) => f !== fn);
+  }
+  emit(evt, ...args) {
+    (this.l[evt] || []).forEach((fn) => fn(...args));
   }
 }
 
-/**
- * Determine dry-run mode from env:
- * - If REACT_APP_DRY_RUN_ESCROW is explicitly "true" => dry-run
- * - Else if escrow address is missing/empty => dry-run
- */
-const _explicitDryRun = String(readEnv('REACT_APP_DRY_RUN_ESCROW') || '').toLowerCase() === 'true';
-const _escrowAddrForDryRun = (readEnv('REACT_APP_ESCROW_ADDRESS') || '').trim();
-export const IS_DRY_RUN_ESCROW = _explicitDryRun || !_escrowAddrForDryRun;
+// PUBLIC_INTERFACE
+export function getEscrowClient() {
+  if (DRY_RUN) {
+    const emitter = new SimpleEmitter();
+    // PUBLIC_INTERFACE
+    async function deposit({ from, wagerId, amountEth }) {
+      // simulate progress
+      const txHash = "0xMOCK" + (Math.random().toString(16).slice(2, 10));
+      emitter.emit("tx:submitted", { txHash, from, wagerId, amountEth });
 
-/** PUBLIC_INTERFACE */
-export function getEnv() {
-  /** Returns normalized environment configuration consumed by the dApp. */
-  const DEFAULTS = {
-    chainId: 11155111, // Sepolia by default
-    explorerBase: 'https://sepolia.etherscan.io',
-    escrowAddress: '',
-  };
+      await new Promise((r) => setTimeout(r, 300));
+      emitter.emit("tx:pending", { txHash });
 
-  const rawChainId = readEnv('REACT_APP_CHAIN_ID');
-  const chainId = Number(rawChainId);
-  const explorerBase = (readEnv('REACT_APP_BLOCK_EXPLORER_BASE') || '').trim();
-  const escrowAddress = (readEnv('REACT_APP_ESCROW_ADDRESS') || '').trim();
+      await new Promise((r) => setTimeout(r, 600));
+      emitter.emit("tx:confirmed", { txHash, blockNumber: 123456 });
 
-  const isDev = process.env.NODE_ENV !== 'production';
-  if (isDev) {
-    const missing = [];
-    if (!rawChainId) missing.push('REACT_APP_CHAIN_ID');
-    if (!explorerBase) missing.push('REACT_APP_BLOCK_EXPLORER_BASE');
-    if (!escrowAddress) missing.push('REACT_APP_ESCROW_ADDRESS');
-
-    if (missing.length) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[Env] Missing environment variables: ${missing.join(
-          ', '
-        )}. Using defaults where possible. Review frontend/.env.example for guidance.`
-      );
+      return {
+        txHash,
+        wait: async () => ({
+          status: 1,
+          transactionHash: txHash,
+          blockNumber: 123456,
+        }),
+      };
     }
 
-    if (rawChainId && (!Number.isFinite(chainId) || chainId <= 0)) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[Env] REACT_APP_CHAIN_ID="${rawChainId}" is not a valid positive number. Falling back to default (${DEFAULTS.chainId}).`
-      );
-    }
-
-    if (explorerBase && !/^https?:\/\/.+/i.test(explorerBase)) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[Env] REACT_APP_BLOCK_EXPLORER_BASE should be a valid URL (e.g., https://sepolia.etherscan.io). Received "${explorerBase}".`
-      );
-    }
-
-    if (escrowAddress && !/^0x[a-fA-F0-9]{40}$/.test(escrowAddress)) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[Env] REACT_APP_ESCROW_ADDRESS appears invalid. Expected 0x-prefixed 40 hex chars. Received "${escrowAddress}".`
-      );
-    }
+    return {
+      dryRun: true,
+      address: null,
+      emitter,
+      deposit,
+    };
   }
+
+  // Real scaffold (avoid importing heavy libs if not installed; tests shouldn't require)
+  // Placeholder ABI — do not perform real calls without ABI.
+  const ABI = [];
+  // In a real integration we'd create a provider and signer using window.ethereum and ethers.js.
+  // For now, provide a shape-compatible stub that throws if used without proper ABI.
+  return {
+    dryRun: false,
+    address: ESCROW_ADDRESS,
+    emitter: new SimpleEmitter(),
+    // PUBLIC_INTERFACE
+    async deposit() {
+      if (!ABI.length) {
+        throw new Error("Escrow ABI not configured. Cannot perform real deposit.");
+      }
+      throw new Error("Not implemented: real chain interaction.");
+    },
+  };
+}
+```
+
+Explanation: Create or update hooks/useEthereumWallet.js to connect/disconnect, track account/chain, and simulate SIWE in mock mode.
+````write file="clash-royale-ethereum-matchmaker-171107-171116/frontend/src/hooks/useEthereumWallet.js"
+//
+// hooks/useEthereumWallet.js
+//
+// PUBLIC_INTERFACE
+// React hook to manage wallet connection with mock fallback and SIWE-like flow.
+// In mock mode (no API URL), simulates signature to allow preview flows.
+//
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api } from "../services/api";
+
+const TARGET_CHAIN_ID = Number(process.env.REACT_APP_CHAIN_ID || 11155111);
+const HAS_API = !!process.env.REACT_APP_API_URL;
+
+// PUBLIC_INTERFACE
+export function useEthereumWallet() {
+  const [account, setAccount] = useState(null);
+  const [chainId, setChainId] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState(null);
+  const [siweSession, setSiweSession] = useState(null);
+
+  const isCorrectNetwork = useMemo(() => {
+    if (!chainId) return false;
+    return Number(chainId) === TARGET_CHAIN_ID;
+  }, [chainId]);
+
+  useEffect(() => {
+    if (window?.ethereum?.chainId) {
+      setChainId(parseInt(window.ethereum.chainId, 16));
+    }
+    const onChainChanged = (hex) => setChainId(parseInt(hex, 16));
+    const onAccountsChanged = (accs) => setAccount(accs?.[0] || null);
+
+    if (window?.ethereum?.on) {
+      window.ethereum.on("chainChanged", onChainChanged);
+      window.ethereum.on("accountsChanged", onAccountsChanged);
+    }
+    return () => {
+      if (window?.ethereum?.removeListener) {
+        window.ethereum.removeListener("chainChanged", onChainChanged);
+        window.ethereum.removeListener("accountsChanged", onAccountsChanged);
+      }
+    };
+  }, []);
+
+  const connect = useCallback(async () => {
+    setConnecting(true);
+    setError(null);
+    try {
+      let acc = null;
+      if (window?.ethereum?.request) {
+        const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
+        acc = accs?.[0] || null;
+        setAccount(acc);
+        const chainHex = await window.ethereum.request({ method: "eth_chainId" });
+        setChainId(parseInt(chainHex, 16));
+      } else {
+        // no wallet installed; simulate in mock preview
+        if (!HAS_API) {
+          acc = "0xMockPreview00000000000000000000000000000001";
+          setAccount(acc);
+          setChainId(TARGET_CHAIN_ID);
+        } else {
+          throw new Error("No Ethereum provider found.");
+        }
+      }
+
+      // SIWE-like mock: request nonce and verify
+      const client = api();
+      const { nonce } = await client.auth.nonce();
+      let signature = "0xmocksignature";
+      let message = `Sign in with Ethereum\nNonce: ${nonce}`;
+      if (window?.ethereum?.request && acc) {
+        try {
+          message = `Clash Royale ETH Matchmaker wants you to sign in.\nNonce: ${nonce}`;
+          signature = await window.ethereum.request({
+            method: "personal_sign",
+            params: [message, acc],
+          });
+        } catch {
+          // fall back to mock signature
+          signature = "0xmocksignature";
+        }
+      }
+      await client.auth.verify({ message, signature, address: acc });
+      setSiweSession({ address: acc, message, signature });
+    } catch (e) {
+      setError(e);
+    } finally {
+      setConnecting(false);
+    }
+  }, []);
+
+  const disconnect = useCallback(() => {
+    setAccount(null);
+    setChainId(null);
+    setSiweSession(null);
+    setError(null);
+  }, []);
 
   return {
-    chainId: Number.isFinite(chainId) && chainId > 0 ? chainId : DEFAULTS.chainId,
-    explorerBase: explorerBase || DEFAULTS.explorerBase,
-    escrowAddress: escrowAddress || DEFAULTS.escrowAddress,
+    account,
+    chainId,
+    isCorrectNetwork,
+    connecting,
+    error,
+    siweSession,
+    connect,
+    disconnect,
+    HAS_API,
   };
 }
+```
 
-const ENV = {
-  ESCROW_ADDRESS: readEnv('REACT_APP_ESCROW_ADDRESS'),
-  CHAIN_ID: readEnv('REACT_APP_CHAIN_ID'),
-  EXPLORER: readEnv('REACT_APP_BLOCK_EXPLORER_BASE'),
+Explanation: State management files for actions, reducers, selectors, and store. Provide basic wagers/profiles slices compatible with tests and components.
+````write file="clash-royale-ethereum-matchmaker-171107-171116/frontend/src/state/actions.js"
+//
+// state/actions.js
+//
+// PUBLIC_INTERFACE
+// Redux-like action types and creators for profiles and wagers state.
+//
+
+export const types = {
+  SET_PROFILES: "SET_PROFILES",
+  SET_WAGERS: "SET_WAGERS",
+  ADD_WAGER: "ADD_WAGER",
+  SET_HISTORY: "SET_HISTORY",
+  SET_LOADING: "SET_LOADING",
+  SET_ERROR: "SET_ERROR",
 };
 
-if (process.env.NODE_ENV !== 'production') {
-  if (!ENV.ESCROW_ADDRESS) {
-    // eslint-disable-next-line no-console
-    console.warn('[BlockchainClient] Missing REACT_APP_ESCROW_ADDRESS; deposit() will fail until set.');
-  }
-  if (!ENV.CHAIN_ID) {
-    // eslint-disable-next-line no-console
-    console.warn('[BlockchainClient] REACT_APP_CHAIN_ID not set; network mismatch checks will be limited.');
-  }
-}
-
-/**
- * PUBLIC_INTERFACE
- */
-export class BlockchainClient {
-  /**
-   * @param {Object=} opts
-   * @param {string=} opts.escrowAddress
-   * @param {Array=} opts.escrowAbi
-   * @param {ethers.Signer=} opts.signer
-   */
-  constructor({ escrowAddress, escrowAbi, signer } = {}) {
-    this.escrowAddress = escrowAddress || ENV.ESCROW_ADDRESS || "";
-    this.escrowAbi = escrowAbi || DEFAULT_ESCROW_ABI;
-    /** @type {ethers.Signer|undefined} */
-    this.signer = signer;
-  }
-
-  /**
-   * PUBLIC_INTERFACE
-   * connectProvider
-   * Set/replace the signer. Typically obtained from a web3 wallet connection.
-   * @param {ethers.Signer} signer
-   */
-  connectProvider(signer) {
-    /** This is a public function. */
-    this.signer = signer;
-  }
-
-  /**
-   * PUBLIC_INTERFACE
-   * getNetwork
-   * Return current network information from the signer/provider, if available.
-   * @returns {Promise<{chainId?: string|number, name?: string}>}
-   */
-  async getNetwork() {
-    /** This is a public function. */
-    if (!this.signer) return {};
-    const provider = this.signer.provider;
-    if (!provider) return {};
-    try {
-      const net = await provider.getNetwork();
-      return { chainId: net?.chainId, name: net?.name };
-    } catch {
-      return {};
-    }
-  }
-
-  /**
-   * PUBLIC_INTERFACE
-   * getAccount
-   * Return current account address if a signer is available.
-   * @returns {Promise<string|undefined>}
-   */
-  async getAccount() {
-    /** This is a public function. */
-    if (!this.signer) return undefined;
-    try {
-      return await this.signer.getAddress();
-    } catch {
-      return undefined;
-    }
-  }
-
-  /**
-   * PUBLIC_INTERFACE
-   * deposit
-   * Send a deposit transaction to the escrow contract.
-   *
-   * In dry-run mode, this simulates a tx and resolves after a short delay.
-   *
-   * @param {Object} params
-   * @param {string|number} params.wagerId
-   * @param {number|string} params.amountEth
-   * @param {Object=} params.options  Additional tx options
-   * @returns {Promise<{ txHash: string, receipt?: any, dryRun?: boolean }>}
-   */
-  async deposit({ wagerId, amountEth, options } = {}) {
-    /** This is a public function. */
-    if (IS_DRY_RUN_ESCROW) {
-      const txHash = `0xdryrun${Date.now().toString(16).padStart(58, '0')}`;
-      await new Promise((r) => setTimeout(r, 800));
-      return { txHash, receipt: undefined, dryRun: true };
-    }
-
-    if (!this.signer) {
-      throw new Error('No signer found. Please connect your wallet.');
-    }
-    if (!this.escrowAddress) {
-      throw new Error('Missing REACT_APP_ESCROW_ADDRESS. Set it in the environment.');
-    }
-    const numericWagerId = Number.isFinite(Number(wagerId)) ? Number(wagerId) : 0;
-    const value = ethers.utils.parseEther(String(amountEth));
-
-    // Instantiate contract and attempt gas estimation (optional).
-    const contract = new ethers.Contract(this.escrowAddress, this.escrowAbi, this.signer);
-    try {
-      // await contract.estimateGas.deposit(numericWagerId, { value, ...(options || {}) });
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('[BlockchainClient] Gas estimation failed; attempting to send anyway:', e);
-    }
-
-    const tx = await contract.deposit(numericWagerId, { value, ...(options || {}) });
-    const receipt = await tx.wait();
-    return { txHash: receipt?.transactionHash || tx?.hash, receipt };
-  }
-
-  /**
-   * PUBLIC_INTERFACE
-   * formatTxLink
-   * Create a block explorer link for a transaction hash if REACT_APP_BLOCK_EXPLORER_BASE is set.
-   * @param {string} txHash
-   */
-  formatTxLink(txHash) {
-    /** This is a public function. */
-    const base = getExplorerBase();
-    if (!base || !txHash) return undefined;
-    return `${base.replace(/\/+$/, '')}/tx/${txHash}`;
-  }
-}
-
-/** Internal helper to ensure we always use a clean base URL (no trailing slash). */
-function sanitizedBase(url) {
-  if (!url) return '';
-  return url.endsWith('/') ? url.slice(0, -1) : url;
-}
+// PUBLIC_INTERFACE
+export const setProfiles = (profiles) => ({ type: types.SET_PROFILES, profiles });
 
 // PUBLIC_INTERFACE
-export function getConfiguredChainId() {
-  /** Returns the configured chainId (number), with sane defaults and dev warnings handled by getEnv. */
-  return getEnv().chainId;
-}
+export const setWagers = (wagers) => ({ type: types.SET_WAGERS, wagers });
 
 // PUBLIC_INTERFACE
-export function getExplorerBase() {
-  /** Returns the explorer base URL from configuration with sane defaults. */
-  return getEnv().explorerBase;
-}
+export const addWager = (wager) => ({ type: types.ADD_WAGER, wager });
 
 // PUBLIC_INTERFACE
-export function getEscrowAddress() {
-  /** Returns the configured escrow contract address (may be empty string if not set). */
-  return getEnv().escrowAddress;
-}
+export const setHistory = (history) => ({ type: types.SET_HISTORY, history });
 
 // PUBLIC_INTERFACE
-export function buildAddressUrl(address) {
-  /** Builds a block explorer URL for a contract or wallet address. Returns empty string if inputs are missing. */
-  const base = getExplorerBase();
-  if (!base || !address) return '';
-  return `${sanitizedBase(base)}/address/${address}`;
-}
-
-/** PUBLIC_INTERFACE
- * isDryRun
- * Return true when escrow logic is in dry-run mode.
- */
-export function isDryRun() {
-  return IS_DRY_RUN_ESCROW === true;
-}
+export const setLoading = (loading) => ({ type: types.SET_LOADING, loading });
 
 // PUBLIC_INTERFACE
-export function buildTxUrl(txHash) {
-  /** Builds a block explorer URL for a transaction hash. Returns empty string if inputs are missing. */
-  const base = getExplorerBase();
-  if (!base || !txHash) return '';
-  return `${sanitizedBase(base)}/tx/${txHash}`;
-}
-
-// PUBLIC_INTERFACE
-export function getExplorerTxUrl(hash) {
-  /** Returns a complete explorer URL for a tx hash if BLOCK_EXPLORER_BASE is set. Otherwise, returns undefined. */
-  const url = buildTxUrl(hash);
-  return url || undefined;
-}
-
-// PUBLIC_INTERFACE
-export function isValidEthAddress(address) {
-  /** Lightweight validation for Ethereum addresses (0x + 40 hex chars). */
-  return /^0x[a-fA-F0-9]{40}$/.test(address || '');
-}
-
-// PUBLIC_INTERFACE
-export function warnIfIncompatibleChain(currentChainId) {
-  /**
-   * Logs a non-intrusive warning if the wallet's currentChainId does not match the configured chainId.
-   * Returns true when compatible, false when incompatible.
-   */
-  const configured = getConfiguredChainId();
-  if (currentChainId && configured && Number(currentChainId) !== Number(configured)) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[Blockchain] Wallet chain (${currentChainId}) does not match configured chain (${configured}). Some actions may fail.`
-    );
-    return false;
-  }
-  return true;
-}
-
-/**
- * PUBLIC_INTERFACE
- * sendEscrowDeposit
- * Backward-compatible helper kept for existing imports.
- * Delegates to a transient BlockchainClient instance.
- * @param {{ signer: ethers.Signer, matchId: string|number, amountEth: number|string, escrowAddress?: string, escrowAbi?: any[] }} params
- * @returns {Promise<{txHash: string, receipt?: any, dryRun?: boolean}>}
- */
-export async function sendEscrowDeposit({ signer, matchId, amountEth, escrowAddress = readEnv('REACT_APP_ESCROW_ADDRESS'), escrowAbi = DEFAULT_ESCROW_ABI }) {
-  /** This is a public function. */
-  const client = new BlockchainClient({ escrowAddress, escrowAbi, signer });
-  return client.deposit({ wagerId: matchId, amountEth });
-}
+export const setError = (error) => ({ type: types.SET_ERROR, error });

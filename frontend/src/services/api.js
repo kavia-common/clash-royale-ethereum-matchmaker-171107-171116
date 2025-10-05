@@ -1,485 +1,255 @@
 //
-// Centralized API client for the frontend to talk to the backend.
-// Uses fetch with JSON helpers, environment-based base URL, and typed endpoints.
+// services/api.js
 //
-// Required env vars (documented in .env.example):
-// - REACT_APP_API_URL
+// PUBLIC_INTERFACE
+// Provides API client with mock-friendly behavior. If REACT_APP_API_URL is unset,
+// returns mock handlers that simulate backend interactions (profiles, wagers,
+// auth.nonce/verify, history, deposits).
 //
-// See INTEGRATION_NOTES.md for assumed API contracts and models.
-// TODO: Align paths and shapes with the backend team.
-//
-// Design goals:
-// - Provide a factory createApiClient(baseUrl?) for testability and flexibility.
-// - Maintain backward-compatible named exports already used by components.
-// - Consistent error handling via ApiError with {code, message, details?} shape.
-// - JSDoc typedefs enable IDE intellisense and self-documentation.
+// Uses deterministic results for tests and preview with setTimeout to emulate latency.
 //
 
-const BASE_URL = process.env.REACT_APP_API_URL || "";
+/** Utility: wait for ms */
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Flag: mock mode when API URL is missing and not production
-export const IS_API_MOCK_MODE = !BASE_URL && process.env.NODE_ENV !== 'production';
-
-/**
- * PUBLIC_INTERFACE
- * ApiError
- * Error with typed fields that mirror backend error format.
- */
-export class ApiError extends Error {
-  /**
-   * @param {string} message
-   * @param {{status?: number, code?: string, details?: any, data?: any}} [opts]
-   */
-  constructor(message, { status, code, details, data } = {}) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status ?? 0;
-    this.code = code || "API_ERROR";
-    this.details = details;
-    this.data = data;
-  }
-}
-
-/**
- * PUBLIC_INTERFACE
- * UserProfile model
- * @typedef {Object} UserProfile
- * @property {string} id
- * @property {string} username
- * @property {string=} rank
- * @property {string=} avatarUrl
- * @property {number} wagerEth
- */
-
-/**
- * PUBLIC_INTERFACE
- * Wager model
- * @typedef {Object} Wager
- * @property {string} id
- * @property {"initiated"|"awaiting-deposits"|"ready"|"in-progress"|"completed"|"cancelled"} status
- * @property {{challenger: string, opponent: string}} players
- * @property {{challengerEth: number, opponentEth: number, totalEth?: number}} amounts
- * @property {string} createdAt
- * @property {string=} updatedAt
- */
-
-/**
- * PUBLIC_INTERFACE
- * GameHistoryItem model
- * @typedef {Object} GameHistoryItem
- * @property {string} id
- * @property {string} date
- * @property {string} opponent
- * @property {number} wagerEth
- * @property {"win"|"loss"|"draw"|"cancelled"} result
- * @property {number=} profitEth
- */
-
-/**
- * PUBLIC_INTERFACE
- * CRProfile model (subset)
- * @typedef {Object} CRProfile
- * @property {string} tag
- * @property {string} name
- * @property {number=} trophies
- * @property {number=} bestTrophies
- * @property {number=} expLevel
- * @property {number=} wins
- * @property {number=} losses
- * @property {{name?: string}=} clan
- */
-
-/**
- * Request helper with consistent error handling.
- * Throws ApiError on non-2xx status codes or network failures.
- * @param {string} baseUrl
- * @param {string} path
- * @param {RequestInit & {parseText?: boolean}} [init]
- * @returns {Promise<any>}
- */
-async function request(baseUrl, path, { method = "GET", headers = {}, body, signal, parseText = false } = {}) {
-  const url = `${baseUrl}${path}`;
-  const init = {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...headers,
-    },
-    signal,
+/** Deterministic pseudo-random generator for stable mock outputs */
+function mulberry32(seed) {
+  let t = seed + 0x6D2B79F5;
+  return function () {
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  if (body !== undefined) {
-    init.body = typeof body === "string" ? body : JSON.stringify(body);
-  }
-
-  let res;
-  try {
-    res = await fetch(url, init);
-  } catch (e) {
-    const err = new ApiError(`Network error contacting API: ${e?.message || "unknown"}`, { code: "NETWORK_ERROR" });
-    err.cause = e;
-    throw err;
-  }
-
-  const text = await res.text();
-  const maybeJson = text ? safeJson(text) : null;
-
-  if (!res.ok) {
-    // Prefer backend-provided message/code/details if present
-    const code = (maybeJson && (maybeJson.code || maybeJson.error?.code)) || "API_ERROR";
-    const message =
-      (maybeJson && (maybeJson.message || maybeJson.error?.message)) ||
-      `API error: ${res.status}`;
-    const details = maybeJson && (maybeJson.details || maybeJson.error?.details);
-    const err = new ApiError(message, { status: res.status, code, details, data: maybeJson });
-    throw err;
-  }
-
-  if (parseText) return text;
-  return maybeJson;
 }
 
-function safeJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { raw: text };
-  }
-}
+const API_URL = process.env.REACT_APP_API_URL;
+
+const mockProfiles = [
+  {
+    id: "p1",
+    crTag: "#ABC123",
+    name: "BlueKnight",
+    trophy: 6200,
+    preferredWagerEth: 0.01,
+    availability: "Evenings",
+  },
+  {
+    id: "p2",
+    crTag: "#ZZTOP",
+    name: "AmberQueen",
+    trophy: 5400,
+    preferredWagerEth: 0.02,
+    availability: "Weekends",
+  },
+  {
+    id: "p3",
+    crTag: "#ROYALE",
+    name: "ShadowPrince",
+    trophy: 6800,
+    preferredWagerEth: 0.05,
+    availability: "Flexible",
+  },
+];
+
+let mockSession = {
+  address: null,
+  siwe: null,
+  nonce: null,
+};
+
+let mockWagers = [
+  {
+    id: "w1",
+    opponent: mockProfiles[0],
+    amountEth: 0.01,
+    status: "open",
+    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
+  },
+  {
+    id: "w2",
+    opponent: mockProfiles[1],
+    amountEth: 0.02,
+    status: "matched",
+    createdAt: Date.now() - 1000 * 60 * 60 * 8,
+  },
+];
+
+let mockHistory = [
+  {
+    id: "h1",
+    opponent: "AmberQueen",
+    result: "win",
+    amountEth: 0.01,
+    timestamp: Date.now() - 1000 * 60 * 60 * 48,
+  },
+  {
+    id: "h2",
+    opponent: "BlueKnight",
+    result: "loss",
+    amountEth: 0.02,
+    timestamp: Date.now() - 1000 * 60 * 60 * 10,
+  },
+];
 
 /**
  * PUBLIC_INTERFACE
- * createApiClient
- * Factory returning typed methods bound to a base URL.
- * @param {string=} baseUrl Default: process.env.REACT_APP_API_URL or ""
+ * api - returns an API client. If API_URL not provided, returns a mocked client.
  */
-export function createApiClient(baseUrl = BASE_URL) {
-  // Attach Authorization header if an app-level accessor is provided in future.
-  const authHeaders = () => {
-    // TODO: wire in session token/cookie as needed. See INTEGRATION_NOTES.md.
-    return {};
-  };
-
-  // Mock helpers
-  function seededRand(seed) {
-    let h = 2166136261 ^ seed;
-    h = Math.imul(h ^ (h >>> 15), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    h ^= h >>> 16;
-    return (h >>> 0) / 4294967296;
-  }
-  function mockProfile(i) {
-    const r = seededRand(1000 + i);
-    const ranks = ["Bronze", "Silver", "Gold", "Platinum", "Diamond"];
+export function api(fetchImpl = fetch) {
+  if (!API_URL) {
+    const rng = mulberry32(42);
     return {
-      id: `mock-${i + 1}`,
-      username: `Player_${i + 1}`,
-      rank: ranks[i % ranks.length],
-      avatarUrl: '',
-      wagerEth: Number((0.05 + (r % 0.45)).toFixed(2)),
+      // PUBLIC_INTERFACE
+      async getProfiles() {
+        await delay(150);
+        return mockProfiles.map((p, i) => ({
+          ...p,
+          online: rng() > 0.3,
+          recentActivityMins: Math.floor(rng() * 120),
+          idx: i,
+        }));
+      },
+
+      // PUBLIC_INTERFACE
+      async getCRMe() {
+        await delay(120);
+        if (!mockSession.address) {
+          return { linked: false, crTag: null, name: null };
+        }
+        // deterministically map address to a fake tag
+        const tag = "#MOCK" + mockSession.address.slice(2, 6).toUpperCase();
+        return { linked: true, crTag: tag, name: "MockUser" };
+      },
+
+      // PUBLIC_INTERFACE
+      async crLink({ crTag }) {
+        await delay(200);
+        return { linked: true, crTag, name: "LinkedUser" };
+      },
+
+      // PUBLIC_INTERFACE
+      async initWager({ opponentId, amountEth }) {
+        await delay(200);
+        const newWager = {
+          id: "w" + (mockWagers.length + 1),
+          opponent: mockProfiles.find((p) => p.id === opponentId) || mockProfiles[0],
+          amountEth,
+          status: "open",
+          createdAt: Date.now(),
+        };
+        mockWagers.unshift(newWager);
+        return newWager;
+      },
+
+      // PUBLIC_INTERFACE
+      async notifyDeposit({ wagerId, txHash }) {
+        await delay(150);
+        // mark wager as deposited/pending
+        mockWagers = mockWagers.map((w) =>
+          w.id === wagerId ? { ...w, status: "deposit_pending", txHash } : w
+        );
+        return { ok: true };
+      },
+
+      // PUBLIC_INTERFACE
+      async getWagerStatus({ wagerId }) {
+        await delay(120);
+        const w = mockWagers.find((x) => x.id === wagerId);
+        if (!w) return { status: "unknown" };
+        // cycle deterministically
+        const states = ["open", "deposit_pending", "ready", "in_game", "settled"];
+        const idx = Math.floor((Date.now() / 5000) % states.length);
+        return { status: w.status === "settled" ? "settled" : states[idx], wager: w };
+      },
+
+      // PUBLIC_INTERFACE
+      async getLive() {
+        await delay(100);
+        return mockWagers.filter((w) => w.status !== "settled");
+      },
+
+      // PUBLIC_INTERFACE
+      async getHistory() {
+        await delay(100);
+        return mockHistory;
+      },
+
+      // PUBLIC_INTERFACE
+      auth: {
+        // PUBLIC_INTERFACE
+        async nonce() {
+          await delay(80);
+          const nonce = Math.floor(rng() * 1e6).toString();
+          mockSession.nonce = nonce;
+          return { nonce };
+        },
+        // PUBLIC_INTERFACE
+        async verify({ message, signature, address }) {
+          await delay(80);
+          // in mock mode, accept anything and set session
+          mockSession.address = address || "0xMockAddress";
+          mockSession.siwe = { message, signature, address: mockSession.address };
+          return { ok: true, address: mockSession.address };
+        },
+      },
     };
   }
-  function mockProfiles({ minWager, maxWager, cursor } = {}) {
-    const start = Number(cursor || 0);
-    const pageSize = 10;
-    const items = Array.from({ length: pageSize }, (_, idx) => mockProfile(start + idx));
-    const filtered = items.filter(p => {
-      const okMin = minWager != null ? p.wagerEth >= Number(minWager) : true;
-      const okMax = maxWager != null ? p.wagerEth <= Number(maxWager) : true;
-      return okMin && okMax;
+
+  // Real client scaffold: still simple fetch wrappers; backend contract expected.
+  const base = API_URL.replace(/\/+$/, "");
+
+  async function req(path, opts) {
+    const res = await fetchImpl(`${base}${path}`, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...(opts?.headers || {}) },
+      ...opts,
     });
-    const nextCursor = start + pageSize < 60 ? String(start + pageSize) : null;
-    return { items: filtered, nextCursor, hasMore: Boolean(nextCursor) };
-  }
-  function mockHistory() {
-    return Array.from({ length: 6 }, (_, i) => ({
-      id: `hist-${i}`,
-      date: new Date(Date.now() - (i + 1) * 86400000).toISOString(),
-      opponent: `0x${(i + 1).toString(16).padStart(40, 'a')}`,
-      wagerEth: Number((0.05 + i * 0.02).toFixed(2)),
-      result: i % 2 === 0 ? 'win' : 'loss',
-      profitEth: i % 2 === 0 ? Number((0.05 + i * 0.02).toFixed(2)) : -Number((0.05 + i * 0.02).toFixed(2)),
-    }));
-  }
-
-  // Auth/session
-  // PUBLIC_INTERFACE
-  async function getSessionMe() {
-    /** Get current session user. GET /me */
-    if (IS_API_MOCK_MODE) {
-      return { id: 'dev-user', username: 'DevUser', address: `0x${'d'.repeat(40)}` };
-    }
-    return request(baseUrl, `/me`, { method: "GET", headers: authHeaders() });
-  }
-  // PUBLIC_INTERFACE
-  async function getWalletNonce(address) {
-    /** Request nonce for wallet signature. POST /auth/wallet-nonce */
-    if (IS_API_MOCK_MODE) {
-      return { nonce: `mock-nonce-${(address || '').slice(2, 6)}` };
-    }
-    return request(baseUrl, `/auth/wallet-nonce`, { method: "POST", body: { address } });
-  }
-  // PUBLIC_INTERFACE
-  async function verifyWalletSignature({ address, signature }) {
-    /** Verify wallet signature and establish a session. POST /auth/wallet-verify */
-    if (IS_API_MOCK_MODE) {
-      return { ok: true, address, signature, token: 'mock-session' };
-    }
-    return request(baseUrl, `/auth/wallet-verify`, { method: "POST", body: { address, signature } });
-  }
-
-  // Clash Royale linking
-  // PUBLIC_INTERFACE
-  async function crLink({ tag, token }) {
-    /** Link CR account to session. POST /cr/link */
-    if (IS_API_MOCK_MODE) {
-      return { ok: true, tag, linkedAt: new Date().toISOString() };
-    }
-    return request(baseUrl, `/cr/link`, { method: "POST", headers: authHeaders(), body: { tag, token } });
-  }
-  // PUBLIC_INTERFACE
-  async function crMe() {
-    /** Fetch linked CR profile. GET /cr/me */
-    if (IS_API_MOCK_MODE) {
-      return { tag: '#2PP', name: 'Dev Barbarian', trophies: 4200, expLevel: 13 };
-    }
-    return request(baseUrl, `/cr/me`, { method: "GET", headers: authHeaders() });
-  }
-
-  // Clash Royale helper endpoints via backend proxy (optional)
-  // PUBLIC_INTERFACE
-  async function getCRPlayer({ tag, token } = {}) {
-    /** Fetch CR player profile via backend proxy. */
-    if (IS_API_MOCK_MODE) {
-      return { tag: tag || '#2PP', name: 'Dev Barbarian', trophies: 4200, expLevel: 13 };
-    }
-    const params = new URLSearchParams();
-    if (tag) params.set("tag", String(tag));
-    const headers = { ...authHeaders() };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const qs = params.toString() ? `?${params.toString()}` : "";
-    return request(baseUrl, `/cr/player${qs}`, { method: "GET", headers });
-  }
-  // PUBLIC_INTERFACE
-  async function getCRFavoriteCards({ tag, token } = {}) {
-    /** Fetch CR favorites/deck via backend proxy. */
-    if (IS_API_MOCK_MODE) {
-      // Return a simple array of card objects for ease of rendering
-      return [{ name: 'Knight' }, { name: 'Archers' }, { name: 'Fireball' }, { name: 'Zap' }];
-    }
-    const params = new URLSearchParams();
-    if (tag) params.set("tag", String(tag));
-    const headers = { ...authHeaders() };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const qs = params.toString() ? `?${params.toString()}` : "";
-    return request(baseUrl, `/cr/player/favorites${qs}`, { method: "GET", headers });
-  }
-
-  // Profiles
-  // PUBLIC_INTERFACE
-  async function getProfiles({ minWager, maxWager, cursor } = {}) {
-    /** List profiles with optional wager filter and pagination. GET /profiles */
-    if (IS_API_MOCK_MODE) {
-      return new Promise((resolve) => setTimeout(() => resolve(mockProfiles({ minWager, maxWager, cursor })), 120));
-    }
-    const params = new URLSearchParams();
-    if (minWager != null) params.set("minWager", String(minWager));
-    if (maxWager != null) params.set("maxWager", String(maxWager));
-    if (cursor) params.set("cursor", String(cursor));
-    const qs = params.toString() ? `?${params.toString()}` : "";
-    return request(baseUrl, `/profiles${qs}`, { method: "GET", headers: authHeaders() });
-  }
-
-  // Wagers: Live, History, Initiate, State changes
-  // PUBLIC_INTERFACE
-  async function getLiveWagers() {
-    /** List current live/open wagers. GET /wagers/live */
-    if (IS_API_MOCK_MODE) {
-      return [
-        { id: 'live-1', status: 'awaiting-deposits', players: { challenger: '0x'+'a'.repeat(40), opponent: '0x'+'b'.repeat(40)}, amounts: { challengerEth: 0.1, opponentEth: 0.1 } },
-      ];
-    }
-    return request(baseUrl, `/wagers/live`, { method: "GET", headers: authHeaders() });
-  }
-  // PUBLIC_INTERFACE
-  async function getWagerHistory() {
-    /** List wager history for the authenticated user. GET /wagers/history */
-    if (IS_API_MOCK_MODE) {
-      return mockHistory();
-    }
-    return request(baseUrl, `/wagers/history`, { method: "GET", headers: authHeaders() });
-  }
-  // PUBLIC_INTERFACE
-  async function initiateWager({ opponentId, wagerEth }) {
-    /** Create a new wager intent. POST /wagers/initiate */
-    if (IS_API_MOCK_MODE) {
-      return new Promise((resolve) =>
-        setTimeout(() => resolve({ id: `mock-wager-${Date.now()}`, opponentId, wagerEth, status: 'awaiting-deposits' }), 120)
-      );
-    }
-    return request(baseUrl, `/wagers/initiate`, { method: "POST", headers: authHeaders(), body: { opponentId, wagerEth } });
-  }
-  // PUBLIC_INTERFACE
-  async function depositNotify({ id, txHash, amountEth }) {
-    /** Notify backend of a deposit tx hash. POST /wagers/:id/deposit */
-    if (IS_API_MOCK_MODE) {
-      return { ok: true, id, txHash, amountEth };
-    }
-    return request(baseUrl, `/wagers/${encodeURIComponent(id)}/deposit`, {
-      method: "POST",
-      headers: authHeaders(),
-      body: { txHash, amountEth },
-    });
-  }
-  // PUBLIC_INTERFACE
-  async function confirmWager({ id }) {
-    /** Confirm both deposits and mark as ready/in-progress. POST /wagers/:id/confirm */
-    if (IS_API_MOCK_MODE) {
-      return { ok: true, id, status: 'ready' };
-    }
-    return request(baseUrl, `/wagers/${encodeURIComponent(id)}/confirm`, { method: "POST", headers: authHeaders(), body: {} });
-  }
-  // PUBLIC_INTERFACE
-  async function cancelWager({ id, reason }) {
-    /** Cancel a wager before completion. POST /wagers/:id/cancel */
-    if (IS_API_MOCK_MODE) {
-      return { ok: true, id, status: 'cancelled', reason };
-    }
-    return request(baseUrl, `/wagers/${encodeURIComponent(id)}/cancel`, { method: "POST", headers: authHeaders(), body: { reason } });
-  }
-  // PUBLIC_INTERFACE
-  async function postWagerResult({ id, result, proof }) {
-    /** Post final match result to settle escrow. POST /wagers/:id/result */
-    if (IS_API_MOCK_MODE) {
-      return { ok: true, id, result, settledAt: new Date().toISOString() };
-    }
-    return request(baseUrl, `/wagers/${encodeURIComponent(id)}/result`, {
-      method: "POST",
-      headers: authHeaders(),
-      body: { result, proof },
-    });
-  }
-
-  // Escrow helpers
-  // PUBLIC_INTERFACE
-  async function getEscrowConfig() {
-    /** Read escrow config (address, chainId, limits). GET /escrow/config */
-    if (IS_API_MOCK_MODE) {
-      return { address: '0x' + 'e'.repeat(40), chainId: 11155111, min: 0.01, max: 1, abi: [] };
-    }
-    return request(baseUrl, `/escrow/config`, { method: "GET", headers: authHeaders() });
-  }
-  // PUBLIC_INTERFACE
-  async function getEscrowStatus({ wagerId }) {
-    /** Read escrow status for a wager. GET /escrow/:wagerId/status */
-    if (IS_API_MOCK_MODE) {
-      return { wagerId, status: 'deposited', state: 'ready' };
-    }
-    return request(baseUrl, `/escrow/${encodeURIComponent(wagerId)}/status`, { method: "GET", headers: authHeaders() });
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    return res.json();
   }
 
   return {
-    // Auth/session
-    getSessionMe,
-    getWalletNonce,
-    verifyWalletSignature,
-    // Clash Royale
-    crLink,
-    crMe,
-    getCRPlayer,
-    getCRFavoriteCards,
-    // Profiles
-    getProfiles,
-    // Wagers
-    getLiveWagers,
-    getWagerHistory,
-    initiateWager,
-    depositNotify,
-    confirmWager,
-    cancelWager,
-    postWagerResult,
-    // Escrow
-    getEscrowConfig,
-    getEscrowStatus,
+    // PUBLIC_INTERFACE
+    getProfiles() {
+      return req("/profiles", { method: "GET" });
+    },
+    // PUBLIC_INTERFACE
+    getCRMe() {
+      return req("/me/cr", { method: "GET" });
+    },
+    // PUBLIC_INTERFACE
+    crLink(body) {
+      return req("/me/cr/link", { method: "POST", body: JSON.stringify(body) });
+    },
+    // PUBLIC_INTERFACE
+    initWager(body) {
+      return req("/wagers", { method: "POST", body: JSON.stringify(body) });
+    },
+    // PUBLIC_INTERFACE
+    notifyDeposit(body) {
+      return req("/wagers/deposit", { method: "POST", body: JSON.stringify(body) });
+    },
+    // PUBLIC_INTERFACE
+    getWagerStatus({ wagerId }) {
+      return req(`/wagers/${encodeURIComponent(wagerId)}/status`, { method: "GET" });
+    },
+    // PUBLIC_INTERFACE
+    getLive() {
+      return req("/wagers/live", { method: "GET" });
+    },
+    // PUBLIC_INTERFACE
+    getHistory() {
+      return req("/wagers/history", { method: "GET" });
+    },
+    auth: {
+      // PUBLIC_INTERFACE
+      nonce() {
+        return req("/auth/nonce", { method: "GET" });
+      },
+      // PUBLIC_INTERFACE
+      verify(body) {
+        return req("/auth/verify", { method: "POST", body: JSON.stringify(body) });
+      },
+    },
   };
 }
-
-// Default client bound to env base URL
-const defaultClient = createApiClient();
-
-/**
- * Backward-compatible named exports
- * These preserve existing imports used by components while transitioning to the factory-based API.
- */
-
-// PUBLIC_INTERFACE
-export async function apiGetLiveWagers() {
-  /** Fetch live wagers. Wrapper for getLiveWagers(). */
-  return defaultClient.getLiveWagers();
-}
-
-// PUBLIC_INTERFACE
-export async function apiGetGameHistory() {
-  /**
-   * Fetch user wager/game history.
-   * Wrapper for getWagerHistory(). Earlier drafts used /games/history; aligning to /wagers/history.
-   */
-  return defaultClient.getWagerHistory();
-}
-
-// PUBLIC_INTERFACE
-export async function apiGetProfiles({ minWager, maxWager, cursor } = {}) {
-  /** Fetch list of profiles. Optional filter. Wrapper for getProfiles(). */
-  return defaultClient.getProfiles({ minWager, maxWager, cursor });
-}
-
-// PUBLIC_INTERFACE
-export async function apiLinkAccount({ tag, token, walletAddress } = {}) {
-  /**
-   * Link Clash Royale account. Wrapper for crLink().
-   * Note: walletAddress parameter is currently unused by the assumed endpoint.
-   */
-  // eslint-disable-next-line no-unused-vars
-  const _ = walletAddress; // kept for backward compatibility; remove after API stabilizes
-  return defaultClient.crLink({ tag, token });
-}
-
-// PUBLIC_INTERFACE
-export async function apiCreateMatch({ opponentId, wagerEth }) {
-  /** Create a wager intent (match). Wrapper for initiateWager(). */
-  return defaultClient.initiateWager({ opponentId, wagerEth });
-}
-
-// PUBLIC_INTERFACE
-export async function apiConfirmDeposit({ matchId, txHash }) {
-  /** Notify backend of a deposit tx. Wrapper for depositNotify(). */
-  return defaultClient.depositNotify({ id: matchId, txHash });
-}
-
-// PUBLIC_INTERFACE
-export async function apiGetMatchStatus({ matchId }) {
-  /** Poll escrow status for a wager. Wrapper for getEscrowStatus(). */
-  return defaultClient.getEscrowStatus({ wagerId: matchId });
-}
-
-// PUBLIC_INTERFACE
-export async function apiGetCRPlayer({ tag, token } = {}) {
-  /** Fetch CR player via backend proxy. */
-  return defaultClient.getCRPlayer({ tag, token });
-}
-
-/** PUBLIC_INTERFACE
- * apiGetCRMe
- * Fetch the linked CR profile for the current session. Wrapper for crMe().
- */
-export async function apiGetCRMe() {
-  return defaultClient.crMe();
-}
-
-// PUBLIC_INTERFACE
-export async function apiGetCRFavoriteCards({ tag, token } = {}) {
-  /** Fetch CR favorites via backend proxy. */
-  return defaultClient.getCRFavoriteCards({ tag, token });
-}
-
-// PUBLIC_INTERFACE
-export default defaultClient;

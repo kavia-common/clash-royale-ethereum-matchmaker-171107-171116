@@ -1,453 +1,120 @@
-import React, { useState, useEffect } from 'react';
-import './App.css';
-import './theme.css';
-import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
-import LinkAccountModal from './components/LinkAccountModal';
-import WalletStatus from './components/WalletStatus';
-import WagerFilter from './components/WagerFilter';
-import ProfileList from './components/ProfileList';
-import DepositsDashboard from './components/DepositsDashboard';
-import TierSelectionModal from './components/TierSelectionModal';
-import ClashRoyaleDashboard from './components/ClashRoyaleDashboard';
-import GameHistoryPage from './pages/GameHistoryPage';
-import SettingsModal from './components/SettingsModal';
-import CharacterFeatureHero from './components/CharacterFeatureHero';
-import './components/CharacterFeatureHero.css';
-import { apiGetLiveWagers, apiGetGameHistory, IS_API_MOCK_MODE } from './services/api';
-import { useAppSelector } from './state/store';
-import Banner from './components/ui/Banner';
-import { isDryRun } from './services/blockchain';
-import { selectAuthWallet, selectCrAccount, selectWagerFilter } from './state/selectors';
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import "./index.css";
+import "./theme.css";
+import "./App.css";
+import WalletStatus from "./components/WalletStatus";
+import ProfileList from "./components/ProfileList";
+import WagerFilter from "./components/WagerFilter";
+import DepositsDashboard from "./components/DepositsDashboard";
+import GameHistoryPage from "./pages/GameHistoryPage";
+import { api } from "./services/api";
+import LinkAccountModal from "./components/LinkAccountModal";
 
-/**
- * PUBLIC_INTERFACE
- * App
- * Root component: manages theme, wallet status UI, profile fetch, and account linking.
- * Uses:
- * - REACT_APP_API_URL for backend
- * - REACT_APP_ESCROW_ADDRESS for escrow contract used in downstream components
- */
-function App() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [theme, setTheme] = useState('light');
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [tiersOpen, setTiersOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+function useProfiles() {
+  const [profiles, setProfiles] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Non-blocking environment banners
-  const [showMockApiBanner, setShowMockApiBanner] = useState(IS_API_MOCK_MODE);
-  const [showDryRunBanner, setShowDryRunBanner] = useState(isDryRun());
-  const escrowAddress = process.env.REACT_APP_ESCROW_ADDRESS || '';
-  const chainId = process.env.REACT_APP_CHAIN_ID || '';
-  const missingEscrowConfig =
-    !isDryRun() && (!escrowAddress || !chainId);
-  const [showConfigBanner, setShowConfigBanner] = useState(missingEscrowConfig);
-
-  // Clash Royale dashboard open flag, profile is from global store (/cr/me)
-  const [crOpen, setCrOpen] = useState(false);
-  const authWallet = useAppSelector(selectAuthWallet);
-  const crAccount = useAppSelector(selectCrAccount);
-  // Game history data prefetch state for immediate display on navigation
-  const [prefetching, setPrefetching] = useState(false);
-  const [prefetchedLive, setPrefetchedLive] = useState(null);
-  const [prefetchedHistory, setPrefetchedHistory] = useState(null);
-
-  // Helper to prefetch live wagers and game history before navigating to /game-history
-  // PUBLIC_INTERFACE
-  const goToGameHistoryPrefetch = async () => {
-    setPrefetching(true);
-    setPrefetchedLive(null);
-    setPrefetchedHistory(null);
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
-      const [live, history] = await Promise.allSettled([
-        apiGetLiveWagers(),
-        apiGetGameHistory(),
-      ]);
-      if (live.status === 'fulfilled') {
-        setPrefetchedLive(live.value);
-      }
-      if (history.status === 'fulfilled') {
-        setPrefetchedHistory(history.value);
-      }
-    } catch {
-      // non-fatal; page will fetch on mount as well
+      const data = await api().getProfiles();
+      setProfiles(data);
+      setFiltered(data);
     } finally {
-      setPrefetching(false);
-      navigate('/history', { replace: false, state: { viaTopButtons: true } });
+      setLoading(false);
     }
-  };
-
-  // Global wager filter from store
-  const wagerFilter = useAppSelector(selectWagerFilter);
-
-  // Effect to apply theme to document element
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
-
-  // PUBLIC_INTERFACE
-  const toggleTheme = () => {
-    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
-  };
-
-
-
-  const isHome = location.pathname === '/' || location.pathname === '';
-
-  return (
-    <div className="App" style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
-      {/* Environment banners (non-blocking) */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 100 }}>
-        {showMockApiBanner && (
-          <Banner type="info" onClose={() => setShowMockApiBanner(false)} style={{ borderRadius: 0 }}>
-            Mock API mode: REACT_APP_API_URL not set. Using in-memory data for development.
-          </Banner>
-        )}
-        {showDryRunBanner && (
-          <Banner type="warning" onClose={() => setShowDryRunBanner(false)} style={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
-            Dry-run escrow mode is active: deposits are simulated. To enable real transactions, set REACT_APP_ESCROW_ADDRESS and set REACT_APP_DRY_RUN_ESCROW to false.
-          </Banner>
-        )}
-        {showConfigBanner && (
-          <Banner
-            type="warning"
-            onClose={() => setShowConfigBanner(false)}
-            style={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}
-          >
-            Escrow configuration incomplete. Please set REACT_APP_ESCROW_ADDRESS and REACT_APP_CHAIN_ID in your environment. See frontend/INTEGRATION_NOTES.md for guidance.
-          </Banner>
-        )}
-      </div>
-      {/* Render the main hero and list only on the home route */}
-      {isHome && (
-        <>
-          {/* Prominent top-level Make Wager button (pill/oval) */}
-          <div
-            style={{
-              position: 'sticky',
-              top: 0,
-              zIndex: 60,
-              background: 'linear-gradient(180deg, rgba(249,250,251,0.98), rgba(255,255,255,0.9))',
-              borderBottom: '1px solid #E5E7EB',
-              boxShadow: '0 8px 22px rgba(0,0,0,0.08)',
-            }}
-          >
-            <div
-              style={{
-                maxWidth: 1180,
-                margin: '0 auto',
-                padding: '12px 16px',
-              }}
-            >
-              <button
-                type="button"
-                onClick={goToGameHistoryPrefetch}
-                aria-label="Make Wager and view game history"
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  maxWidth: 900,
-                  margin: '0 auto',
-                  height: 64,
-                  borderRadius: 9999,
-                  background: '#2563EB',
-                  color: '#FFFFFF',
-                  border: '2px solid #1D4ED8',
-                  fontSize: 22,
-                  fontWeight: 900,
-                  letterSpacing: 0.4,
-                  cursor: 'pointer',
-                  boxShadow: '0 14px 32px rgba(37,99,235,0.35)',
-                  transition: 'transform .12s ease, box-shadow .2s ease, opacity .2s ease',
-                }}
-                onMouseDown={(e) => (e.currentTarget.style.transform = 'translateY(1px)')}
-                onMouseUp={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
-                onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 18px 40px rgba(37,99,235,0.45)')}
-                onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 14px 32px rgba(37,99,235,0.35)')}
-              >
-                Make Wager
-              </button>
-            </div>
-          </div>
-
-          {/* Character Feature Hero */}
-          <CharacterFeatureHero
-            title="Challenge the Arena. Wager with Confidence."
-            subtitle="Find players, set Ethereum-backed wagers, and play fair with escrow-protected matches."
-            primaryCta={{ label: 'Play Now', href: '#', onClick: () => setTiersOpen(true) }}
-            secondaryCta={{ label: 'Learn More', href: '#', onClick: () => goToGameHistoryPrefetch() }}
-          />
-
-          {/* Top header/navigation */}
-          <div
-            style={{
-              width: '100%',
-              position: 'sticky',
-              top: 80,
-              zIndex: 20,
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7))',
-              backdropFilter: 'saturate(180%) blur(8px)',
-              borderBottom: '1px solid #E5E7EB',
-            }}
-          >
-            <div
-              style={{
-                maxWidth: 1180,
-                margin: '0 auto',
-                padding: '12px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '8px 12px',
-                  borderRadius: 12,
-                  background: '#ffffff',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-                }}
-              >
-                <span style={{ fontWeight: 800, color: '#111827' }}>CR Matchmaker</span>
-                <span style={{ color: '#6B7280', fontSize: 12 }}>Ocean Professional</span>
-              </div>
-
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-                <WalletStatus />
-                {/* Linked status badge */}
-                <span
-                  title={crAccount ? 'Clash Royale account linked' : 'No Clash Royale account linked'}
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 800,
-                    color: crAccount ? '#10B981' : '#6B7280',
-                    background: crAccount ? '#ECFDF5' : '#F3F4F6',
-                    border: `1px solid ${crAccount ? '#10B98133' : '#E5E7EB'}`,
-                    padding: '4px 8px',
-                    borderRadius: 999,
-                  }}
-                >
-                  {crAccount ? 'CR Linked' : 'CR Unlinked'}
-                </span>
-                <button
-                  onClick={() => setLinkOpen(true)}
-                  style={{
-                    background: authWallet?.verified ? '#2563EB' : '#93C5FD',
-                    color: '#FFFFFF',
-                    border: '1px solid transparent',
-                    padding: '10px 14px',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    fontWeight: 800,
-                    boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
-                  }}
-                  aria-label="Link Clash Royale account"
-                  title={authWallet?.verified ? 'Link your Clash Royale account' : 'Verify wallet to link account'}
-                >
-                  Link CR
-                </button>
-                <button
-                  onClick={() => setCrOpen(true)}
-                  style={{
-                    background: '#2563EB',
-                    color: '#FFFFFF',
-                    border: '1px solid #1D4ED8',
-                    padding: '10px 14px',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    fontWeight: 800,
-                    boxShadow: '0 2px 8px rgba(37,99,235,0.35)',
-                  }}
-                  aria-label="View Clash Royale stats"
-                  title="Open your Clash Royale profile"
-                >
-                  View CR Stats
-                </button>
-                <button
-                  onClick={() => setTiersOpen(true)}
-                  style={{
-                    background: '#F59E0B',
-                    color: '#111827',
-                    border: '1px solid transparent',
-                    padding: '10px 14px',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    fontWeight: 800,
-                    boxShadow: '0 2px 8px rgba(245,158,11,0.35)',
-                  }}
-                  aria-label="Open tier selection"
-                >
-                  View Tiers
-                </button>
-                <button
-                  className="theme-toggle"
-                  onClick={toggleTheme}
-                  aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-                >
-                  {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Main content layout: side filter + central content */}
-          <main
-            style={{
-              width: '100%',
-              maxWidth: 1180,
-              margin: '24px auto',
-              padding: '0 16px 44px',
-              display: 'grid',
-              gridTemplateColumns: '300px 1fr',
-              gap: 16,
-              alignItems: 'start',
-            }}
-          >
-            <WagerFilter min={0.01} max={5.0} />
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16,
-              }}
-            >
-              {/* Prominent deposit & pending panel */}
-              <DepositsDashboard />
-
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'baseline',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <h2 style={{ margin: 0, fontWeight: 800, color: '#111827' }}>
-                  Player Profiles
-                </h2>
-                <div style={{ color: '#6B7280', fontSize: 13 }}>
-                  Theme: <strong data-testid="theme-value">{theme}</strong>
-                </div>
-              </div>
-              <ProfileList filter={wagerFilter} />
-            </div>
-          </main>
-        </>
-      )}
-
-      {/* Persistent modals */}
-      <LinkAccountModal
-        open={linkOpen}
-        onClose={() => setLinkOpen(false)}
-        onLinked={() => setCrOpen(true)}
-      />
-
-      <TierSelectionModal
-        open={tiersOpen}
-        onClose={() => setTiersOpen(false)}
-        onSelect={(tierId) => {
-          // Placeholder: integrate with future subscription or account settings.
-          // For now, log selection for visibility.
-          // eslint-disable-next-line no-console
-          console.log('Tier selected:', tierId);
-        }}
-      />
-
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-
-      <ClashRoyaleDashboard
-        open={crOpen}
-        onClose={() => setCrOpen(false)}
-        playerTag={crAccount?.tag || crAccount?.player?.tag}
-      />
-
-      {/* App-level routes */}
-      <Routes>
-        <Route
-          path="/"
-          element={<HomePlaceholder onNavigateHistory={goToGameHistoryPrefetch} />}
-        />
-        {/* Primary history route as per acceptance criteria */}
-        <Route
-          path="/history"
-          element={
-            <GameHistoryPage
-              prefetching={prefetching}
-              initialLive={prefetchedLive}
-              initialHistory={prefetchedHistory}
-            />
-          }
-        />
-        {/* Backward compatibility: redirect old path to new one */}
-        <Route path="/game-history" element={<Navigate to="/history" replace />} />
-        <Route path="/wager/:id" element={<WagerDetailsRoute />} />
-        <Route path="/settings" element={<SettingsRoute onOpen={() => setSettingsOpen(true)} />} />
-      </Routes>
-    </div>
-  );
-}
-
-/**
- * PUBLIC_INTERFACE
- * HomePlaceholder
- * Lightweight component to satisfy "/" route in Router config (main content renders conditionally above).
- */
-function HomePlaceholder({ onNavigateHistory }) {
-  /** This is a public function. */
-  useEffect(() => {
-    // No-op; real home is rendered conditionally in App.
   }, []);
-  return <div style={{ display: 'none' }} aria-hidden="true" />;
-}
 
-/**
- * PUBLIC_INTERFACE
- * WagerDetailsRoute
- * Simple placeholder for /wager/:id route.
- */
-function WagerDetailsRoute() {
-  /** This is a public function. */
-  const { id } = useParams();
-  return (
-    <div style={{
-      maxWidth: 980, margin: '24px auto', padding: '0 16px',
-      background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 12, paddingBottom: 16,
-    }}>
-      <div style={{ padding: 16 }}>
-        <h1 style={{ margin: 0, fontWeight: 900, fontSize: 20, color: '#111827' }}>
-          Wager Details
-        </h1>
-        <p style={{ color: '#374151' }}>
-          Placeholder route. Wager ID: <strong>{id}</strong>
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/**
- * PUBLIC_INTERFACE
- * SettingsRoute
- * Placeholder for /settings which opens the existing SettingsModal via prop.
- */
-function SettingsRoute({ onOpen }) {
-  /** This is a public function. */
   useEffect(() => {
-    onOpen?.();
-  }, [onOpen]);
+    load();
+  }, [load]);
+
+  const applyFilter = useCallback(
+    (f) => {
+      const next = profiles.filter((p) => {
+        const amt = Number(p.preferredWagerEth || 0);
+        const minOk = f.min == null || amt >= f.min;
+        const maxOk = f.max == null || amt <= f.max;
+        return minOk && maxOk;
+      });
+      setFiltered(next);
+    },
+    [profiles]
+  );
+
+  return { profiles: filtered, loading, applyFilter, reload: load };
+}
+
+export default function App() {
+  const { profiles, loading, applyFilter } = useProfiles();
+  const [route, setRoute] = useState(window.location.pathname);
+  const [linkOpen, setLinkOpen] = useState(false);
+
+  useEffect(() => {
+    const onPop = () => setRoute(window.location.pathname);
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const navigate = useCallback((to) => {
+    window.history.pushState({}, "", to);
+    setRoute(to);
+  }, []);
+
+  const content = useMemo(() => {
+    if (route === "/history") {
+      return <GameHistoryPage />;
+    }
+    if (route === "/settings") {
+      return (
+        <div className="card">
+          <h3>Settings</h3>
+          <p>Link your Clash Royale account to enhance matchmaking.</p>
+          <button className="btn-primary" onClick={() => setLinkOpen(true)}>
+            Link account
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div className="layout">
+        <aside className="sidebar">
+          <WagerFilter onChange={applyFilter} />
+          <div className="mt-4">
+            <DepositsDashboard />
+          </div>
+        </aside>
+        <main className="main">
+          <ProfileList profiles={profiles} loading={loading} onChallenge={() => {}} />
+        </main>
+      </div>
+    );
+  }, [route, profiles, loading, applyFilter]);
+
   return (
-    <div style={{ maxWidth: 980, margin: '24px auto', padding: '0 16px' }}>
-      <h1 style={{ margin: 0, fontWeight: 900, fontSize: 20, color: '#111827' }}>
-        Settings
-      </h1>
-      <p style={{ color: '#374151' }}>
-        Settings modal opened. This page serves as a route anchor for settings actions.
-      </p>
+    <div className="app">
+      <header className="app-header">
+        <div className="brand" onClick={() => navigate("/")}>
+          Clash Royale ETH Matchmaker
+        </div>
+        <nav>
+          <button className="link" onClick={() => navigate("/")}>
+            Home
+          </button>
+          <button className="link" onClick={() => navigate("/history")}>
+            History
+          </button>
+          <button className="link" onClick={() => navigate("/settings")}>
+            Settings
+          </button>
+        </nav>
+        <div className="wallet-area">
+          <WalletStatus />
+        </div>
+      </header>
+      <div className="container">{content}</div>
+      <LinkAccountModal open={linkOpen} onClose={() => setLinkOpen(false)} />
     </div>
   );
 }
-
-export default App;
