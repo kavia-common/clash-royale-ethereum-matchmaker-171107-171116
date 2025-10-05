@@ -26,3 +26,16 @@ export function useStore() {
   if (!ctx) throw new Error("useStore must be used within StoreProvider");
   return ctx;
 }
+
+// PUBLIC_INTERFACE
+// Compatibility hooks for code/tests expecting Redux-style hooks.
+export function useAppDispatch() {
+  const { dispatch } = useStore();
+  return dispatch;
+}
+
+// PUBLIC_INTERFACE
+export function useAppSelector(selectorFn) {
+  const { state } = useStore();
+  return selectorFn ? selectorFn(state) : state;
+}
