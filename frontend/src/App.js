@@ -7,6 +7,7 @@ import GameHistoryPage from "./pages/GameHistoryPage";
 import LinkAccountModal from "./components/LinkAccountModal";
 import Banner from "./components/ui/Banner";
 import AllInOnePage from "./pages/AllInOnePage";
+import logoAsset from "./CASH_ROYAL.png";
 
 /**
  * PUBLIC_INTERFACE
@@ -87,11 +88,25 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div className="brand" onClick={() => navigate("/")}>
-          Ocean Matchmaker
+      <header className="app-header" aria-label="Site header">
+        <div
+          className="brand brand-link"
+          role="link"
+          tabIndex={0}
+          onClick={() => navigate("/")}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && navigate("/")}
+          aria-label="Go to home"
+          title="Go to home"
+        >
+          <img
+            src={logoAsset}
+            alt="Clash Royale Ethereum Matchmaker logo"
+            className="app-logo"
+            height={36}
+          />
+          <span className="brand-text" aria-label="Ocean Matchmaker">Ocean Matchmaker</span>
         </div>
-        <nav>
+        <nav aria-label="Primary">
           <button className="link" onClick={() => navigate("/")}>Home</button>
           <button className="link" onClick={() => navigate("/history")}>History</button>
           <button className="link" onClick={() => navigate("/settings")}>Settings</button>
