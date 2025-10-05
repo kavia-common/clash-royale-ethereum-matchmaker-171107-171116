@@ -19,6 +19,169 @@ Behavior switches:
 - API mock mode: !REACT_APP_API_URL
 - Escrow dry‑run: REACT_APP_DRY_RUN_ESCROW==="true" OR !REACT_APP_ESCROW_ADDRESS
 
+## Data Models and Schemas
+
+The following models represent the minimal contracts used by the frontend. Backends should adhere to these or respond with compatible fields.
+
+### User
+Represents the authenticated wallet session and optional CR link.
+
+Schema (response shape example):
+```json
+{
+  "address": "0xabc123...def",
+  "linked": true,
+  "crTag": "#ABC123",
+  "name": "BlueKnight"
+}
+```
+Source endpoints:
+- GET /me/cr → { "linked": boolean, "crTag": string|null, "name": string|null }
+- Auth endpoints establish the session: GET /auth/nonce, POST /auth/verify
+
+### Profile
+Represents a public profile available for matchmaking.
+
+Schema:
+```json
+{
+  "id": "p1",
+  "crTag": "#ABC123",
+  "name": "BlueKnight",
+  "trophy": 6200,
+  "preferredWagerEth": 0.01,
+  "availability": "Evenings",
+  "online": true,
+  "recentActivityMins": 42
+}
+```
+Source endpoints:
+- GET /profiles → Profile[]
+
+Example response:
+```json
+[
+  {
+    "id": "p1",
+    "crTag": "#ABC123",
+    "name": "BlueKnight",
+    "trophy": 6200,
+    "preferredWagerEth": 0.01,
+    "availability": "Evenings",
+    "online": true,
+    "recentActivityMins": 42
+  }
+]
+```
+
+### Wager (Match)
+Represents a wager intent between the user and an opponent.
+
+Schema:
+```json
+{
+  "id": "w1",
+  "opponent": {
+    "id": "p1",
+    "crTag": "#ABC123",
+    "name": "BlueKnight",
+    "trophy": 6200,
+    "preferredWagerEth": 0.01,
+    "availability": "Evenings"
+  },
+  "amountEth": 0.02,
+  "status": "open",
+  "createdAt": 1717439200000,
+  "txHash": "0xoptionalWhenDeposited"
+}
+```
+Allowed status values:
+- open, deposit_pending, ready, in_game, settled, unknown
+
+Source endpoints:
+- POST /wagers (create)
+  - Request:
+    ```json
+    { "opponentId": "p1", "amountEth": 0.02 }
+    ```
+  - Response: Wager
+- POST /wagers/deposit (notify backend of on‑chain deposit)
+  - Request:
+    ```json
+    { "wagerId": "w1", "txHash": "0xabc..." }
+    ```
+  - Response:
+    ```json
+    { "ok": true }
+    ```
+- GET /wagers/:id/status
+  - Response:
+    ```json
+    { "status": "ready", "wager": { /* Wager */ } }
+    ```
+
+### LiveWager
+Represents any wager that is active and not yet settled.
+
+Schema:
+```json
+{
+  "id": "w2",
+  "opponent": { "id": "p2", "name": "AmberQueen" },
+  "amountEth": 0.01,
+  "status": "in_game",
+  "createdAt": 1717439200000
+}
+```
+
+Source endpoint:
+- GET /wagers/live → LiveWager[]
+
+Example response:
+```json
+[
+  {
+    "id": "w2",
+    "opponent": { "id": "p2", "name": "AmberQueen" },
+    "amountEth": 0.01,
+    "status": "in_game",
+    "createdAt": 1717439200000
+  }
+]
+```
+
+### HistoryItem
+Represents a completed match with result and timestamp.
+
+Schema:
+```json
+{
+  "id": "h1",
+  "opponent": "AmberQueen",
+  "result": "win",
+  "amountEth": 0.01,
+  "timestamp": 1717270000000
+}
+```
+Allowed result values:
+- win, loss, draw (draw optional; frontend tolerates win/loss)
+
+Source endpoint:
+- GET /wagers/history → HistoryItem[]
+
+Example response:
+```json
+[
+  {
+    "id": "h1",
+    "opponent": "AmberQueen",
+    "result": "win",
+    "amountEth": 0.01,
+    "timestamp": 1717270000000
+  }
+]
+```
+
 ## Missing Backend/Services and Proposed Interfaces
 
 The project does not include a backend or smart contracts. The frontend expects the following services when not in mock/dry‑run:
@@ -26,67 +189,81 @@ The project does not include a backend or smart contracts. The frontend expects 
 1) Authentication (SIWE‑lite compatible)
 - GET /auth/nonce
   - Response: { "nonce": "string" }
-  - Sets/returns a nonce for message signing. Should set anti‑replay metadata server‑side (e.g., tie to IP/session).
 - POST /auth/verify
   - Body: { "message": "string", "signature": "0x...", "address": "0x..." }
   - Response: { "ok": true, "address": "0x..." }
-  - Verifies signature against message and nonce, establishes a session (e.g., HTTP‑only session cookie).
 
 2) Profiles and CR Link
-- GET /profiles
-  - Response: [ { id, crTag, name, trophy, preferredWagerEth, availability, ... } ]
-- GET /me/cr
-  - Response: { "linked": boolean, "crTag": string|null, "name": string|null }
+- GET /profiles → Profile[]
+- GET /me/cr → User (subset: linked/crTag/name)
 - POST /me/cr/link
   - Body: { "crTag": "string" }
   - Response: { "linked": true, "crTag": "string", "name": "string" }
-  - Backend should verify CR ownership (see frontend/INTEGRATION_SUPERCELL_CR.md for CR linking guidance if applicable).
 
-3) Wagers
+3) Wagers and Status
 - POST /wagers
   - Body: { "opponentId": "string", "amountEth": number }
-  - Response: { "id": "string", "opponent": { ...profile }, "amountEth": number, "status": "open|..." , "createdAt": number }
+  - Response: Wager
 - POST /wagers/deposit
   - Body: { "wagerId": "string", "txHash": "0x..." }
   - Response: { "ok": true }
-  - Records a player deposit txHash, transitions wager state server‑side.
 - GET /wagers/:id/status
-  - Response: { "status": "open|deposit_pending|ready|in_game|settled|unknown", "wager"?: { ... } }
-- GET /wagers/live
-  - Response: [ { ...wager } ]  // active or not yet settled
-- GET /wagers/history
-  - Response: [ { id, opponent, result, amountEth, timestamp } ]
+  - Response: { "status": "open|deposit_pending|ready|in_game|settled|unknown", "wager"?: Wager }
+- GET /wagers/live → LiveWager[]
+- GET /wagers/history → HistoryItem[]
 
-4) Blockchain Escrow Contract (assumptions)
-- Network: chainId = REACT_APP_CHAIN_ID (default Sepolia 11155111).
-- Escrow contract exposes a deposit function that accepts ETH value:
-  - function deposit(bytes32 wagerId) payable
-  - Emits events for deposit confirmation and settlement. Event watching may be done by backend indexer or frontend provider.
-- Frontend requires:
-  - Contract address: REACT_APP_ESCROW_ADDRESS
-  - ABI for deposit and relevant events configured in src/services/blockchain.js
-  - EOA signer via window.ethereum
+## Placeholder Escrow ABI (to be replaced)
 
-If using a different function signature or data types (e.g., string wagerId, or separate struct), update frontend/src/services/blockchain.js accordingly.
+The frontend expects a deposit entry point and relevant events. Replace this placeholder with your actual ABI in src/services/blockchain.js.
+
+```json
+[
+  {
+    "type": "function",
+    "name": "deposit",
+    "stateMutability": "payable",
+    "inputs": [
+      { "name": "wagerId", "type": "bytes32" }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "event",
+    "name": "Deposited",
+    "inputs": [
+      { "name": "player", "type": "address", "indexed": true },
+      { "name": "wagerId", "type": "bytes32", "indexed": true },
+      { "name": "amount", "type": "uint256", "indexed": false }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Settled",
+    "inputs": [
+      { "name": "wagerId", "type": "bytes32", "indexed": true },
+      { "name": "winner", "type": "address", "indexed": true }
+    ],
+    "anonymous": false
+  }
+]
+```
+
+If your contract uses different types (e.g., string wagerId), adjust the ABI and any encoding in the frontend. The deposit flow in the UI assumes:
+- User signs in (SIWE‑lite)
+- User calls deposit(wagerId) with msg.value equal to amountEth
+- After confirmation, frontend calls POST /wagers/deposit with the resulting txHash
 
 ## Current Frontend Implementations
 
-- API client (src/services/api.js)
-  - Mock mode: deterministic profiles, wagers, history, and auth flows. Simulates latency.
-  - Real mode: simple fetch wrappers to the routes listed above using credentials: "include" and JSON bodies.
-
-- Escrow client (src/services/blockchain.js)
-  - Dry‑run: simulates tx submission, pending, and confirmation; returns a txHash‑like string.
-  - Real mode: scaffold with placeholder ABI array. Must be replaced with ethers.js logic and the real ABI.
-
-- Wallet and SIWE‑lite (src/hooks/useEthereumWallet.js)
-  - Connects to Ethereum provider when available, falls back to mock account in preview without API URL.
-  - Calls /auth/nonce then signs a message and calls /auth/verify. In mock it accepts any signature.
+- API client (src/services/api.js): mock + real fetch wrappers.
+- Escrow client (src/services/blockchain.js): dry‑run simulator + real scaffold.
+- Wallet (src/hooks/useEthereumWallet.js): connection + SIWE‑lite.
 
 ## Contract Assumptions and Required ABIs
 
 Expected minimal ABI elements:
-- deposit(wagerId) payable  // e.g., deposit(bytes32 wagerId) or deposit(string wagerId)
+- deposit(wagerId) payable
 - Deposited(address player, bytes32 wagerId, uint256 amount)
 - Settled(bytes32 wagerId, address winner)
 
@@ -97,72 +274,34 @@ Adjust types to your implementation and update:
 
 ## Session and Auth Flow (SIWE‑lite)
 
-1) User connects wallet in UI; frontend fetches GET /auth/nonce.
-2) Frontend composes a human‑readable message including the nonce and requests a personal_sign.
-3) Frontend POSTs { message, signature, address } to /auth/verify.
-4) Backend verifies signature and nonce, then establishes a session (cookie or token).
-5) Subsequent requests include credentials (cookie). Frontend fetch uses credentials: "include".
-
-Required backend pieces:
-- Nonce issuance and storage with expiry.
-- Signature verification (EIP‑191 personal_sign). Consider upgrading to full SIWE if needed.
-- HTTPS only, Secure + HttpOnly cookies, and SameSite configuration if cross‑site.
+1) User connects wallet; GET /auth/nonce.
+2) Wallet signs message; POST /auth/verify.
+3) Backend sets session; frontend uses credentials: "include".
 
 ## Mapping: Mock/Dry‑run to Real
 
-- api.getProfiles -> GET /profiles
-- api.getCRMe -> GET /me/cr
-- api.crLink -> POST /me/cr/link
-- api.initWager -> POST /wagers
-- api.notifyDeposit -> POST /wagers/deposit
-- api.getWagerStatus -> GET /wagers/:id/status
-- api.getLive -> GET /wagers/live
-- api.getHistory -> GET /wagers/history
+- api.getProfiles → GET /profiles
+- api.getCRMe → GET /me/cr
+- api.crLink → POST /me/cr/link
+- api.initWager → POST /wagers
+- api.notifyDeposit → POST /wagers/deposit
+- api.getWagerStatus → GET /wagers/:id/status
+- api.getLive → GET /wagers/live
+- api.getHistory → GET /wagers/history
 
-- escrow.deposit (dry‑run) -> contract.deposit(wagerId, { value })
-  After tx mined, call api.notifyDeposit({ wagerId, txHash })
-
-Replace mock/dry‑run paths once backend and contract are available. Ensure user feedback states remain consistent: review → confirm → pending → success/failure.
+- escrow.deposit (dry‑run) → contract.deposit(wagerId, { value })
+  Then api.notifyDeposit({ wagerId, txHash })
 
 ## CORS and Security Considerations
 
-- CORS:
-  - Allow Origin: https://your-frontend-domain or http://localhost:3000
-  - Allow Credentials: true
-  - Allowed Methods: GET, POST, OPTIONS
-  - Allowed Headers: Content-Type, Authorization (if bearer), X-Requested-With
-  - Cookie strategy: set SameSite=None; Secure for cross‑site, and enable credentials on frontend requests.
-
-- Session/Cookies:
-  - Prefer HTTP‑only, Secure cookies with short expiry and refresh flow.
-  - Rotate nonces per attempt and invalidate after use or expiry.
-
-- Rate limiting:
-  - Protect /auth/nonce and /auth/verify.
-  - Throttle wager creation and deposit notifications.
-
-- Input validation:
-  - Validate crTag format and opponentId existence.
-  - Validate amountEth ranges server‑side.
-
-- On‑chain safety:
-  - Validate chainId equals expected target.
-  - Verify txHash corresponds to expected escrow contract and value on backend before accepting deposit state change.
+- Allow origin and credentials, restrict methods/headers, use Secure HttpOnly cookies.
+- Rate limit auth and wager endpoints; validate inputs; verify txHash/contract/value on backend.
 
 ## Deployment Considerations
 
-- Environments:
-  - Preview: no REACT_APP_API_URL and REACT_APP_DRY_RUN_ESCROW=true
-  - Staging: REACT_APP_API_URL set to staging API; REACT_APP_ESCROW_ADDRESS set to testnet; provide ABI and enable CORS with credentials
-  - Production: REACT_APP_API_URL set to prod API; REACT_APP_ESCROW_ADDRESS set to mainnet/testnet as intended; enforce HTTPS
-
-- Backend build:
-  - Must implement endpoints above and attach session middleware and CORS config.
-  - Consider a lightweight indexer or webhook to confirm deposits and settlements based on chain events.
-
-- Frontend config:
-  - Ensure chain prompts or network checks align with REACT_APP_CHAIN_ID.
-  - Provide clear banners indicating mock/dry‑run status for user clarity.
+- Preview: mock API + dry‑run escrow.
+- Staging: testnet address and ABI + CORS with credentials.
+- Production: HTTPS, correct chain, hardened cookies, and on‑chain verification/indexing.
 
 ## References
 
