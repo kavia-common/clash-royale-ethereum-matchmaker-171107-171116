@@ -1,4 +1,5 @@
 //
+//
 // state/selectors.js
 //
 // PUBLIC_INTERFACE
@@ -27,3 +28,20 @@ export const selectError = (state) => state.ui?.error || null;
 // PUBLIC_INTERFACE
 export const selectAuthWallet = (state) =>
   state.auth?.address || state.wallet?.address || state.ui?.account || null;
+
+// Clash Royale account selectors
+
+// PUBLIC_INTERFACE
+export const selectCrAccount = (state) => state.crAccount || { linked: false, profile: null };
+
+// PUBLIC_INTERFACE
+export const selectCrAccountLoading = (state) => state.crAccount?.loading || false;
+
+// PUBLIC_INTERFACE
+export const selectCrAccountError = (state) => state.crAccount?.error || null;
+
+// PUBLIC_INTERFACE
+export const selectCRLinked = (state) => !!state.crAccount?.linked;
+
+// PUBLIC_INTERFACE
+export const selectCRProfile = (state) => state.crAccount?.profile || null;

@@ -1,10 +1,10 @@
 //
+//
 // state/reducers.js
 //
 // PUBLIC_INTERFACE
-// Root reducer combining profiles, wagers, history, and ui slices.
+// Root reducer combining profiles, wagers, history, ui, and crAccount slices.
 //
-
 import { types } from "./actions";
 
 const initial = {
@@ -12,6 +12,12 @@ const initial = {
   wagers: [],
   history: [],
   ui: { loading: false, error: null },
+  crAccount: {
+    linked: false,
+    profile: null,
+    loading: false,
+    error: null,
+  },
 };
 
 // PUBLIC_INTERFACE
@@ -33,13 +39,46 @@ export function rootReducer(state = initial, action) {
       // actions.setWagersHistory(payloadArray) => { type: 'WAGERS_HISTORY_SET', payload: items }
       return { ...state, history: Array.isArray(action.payload) ? action.payload : [] };
 
-    case types.SET_LOADING:
+    case types.SET_LOADING: {
       // actions.setSliceLoading(slice, loading) => payload { slice, loading }
-      return { ...state, ui: { ...state.ui, loading: !!(action.payload && action.payload.loading) } };
+      const slice = action.payload?.slice;
+      const loading = !!(action.payload && action.payload.loading);
+      if (slice === "crAccount") {
+        return { ...state, crAccount: { ...state.crAccount, loading } };
+      }
+      return { ...state, ui: { ...state.ui, loading } };
+    }
 
-    case types.SET_ERROR:
+    case types.SET_ERROR: {
       // actions.setSliceError(slice, error) => payload { slice, error }
-      return { ...state, ui: { ...state.ui, error: action.payload ? action.payload.error || null : null } };
+      const slice = action.payload?.slice;
+      const error = action.payload ? action.payload.error || null : null;
+      if (slice === "crAccount") {
+        return { ...state, crAccount: { ...state.crAccount, error } };
+      }
+      return { ...state, ui: { ...state.ui, error } };
+    }
+
+    case types.CR_ACCOUNT_SET: {
+      const data = action.payload || {};
+      // Normalize payload from API to our slice shape
+      const linked = !!data.linked;
+      const profile = linked
+        ? {
+            tag: data.crTag || data.tag || data.player?.tag || null,
+            name: data.name || data.player?.name || null,
+            trophies: data.trophies ?? data.player?.trophies ?? null,
+          }
+        : null;
+      return {
+        ...state,
+        crAccount: {
+          ...state.crAccount,
+          linked,
+          profile,
+        },
+      };
+    }
 
     default:
       return state;

@@ -1,13 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import apiClient, { apiGetCRMe } from '../services/api';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { apiCRLink, apiGetCRMe, apiCRUnlink } from '../services/api';
 import { useAppDispatch, useAppSelector } from '../state/store';
 import { setSliceError, setSliceLoading, setCrAccountData } from '../state/actions';
-import { selectAuthWallet } from '../state/selectors';
+import { selectCRLinked, selectCRProfile } from '../state/selectors';
 import { Banner } from './ui';
+import InlineError from './ui/InlineError';
 
 /**
  * Ocean Professional theme tokens mapped to CSS variables
- * Keeping tokens local to component for easy reuse and future theming system integration.
  */
 const theme = {
   primary: 'var(--color-primary)',
@@ -22,43 +22,37 @@ const theme = {
 
 /**
  * Utility: Basic Clash Royale tag validation.
- * Valid tags are usually 8–14 characters, uppercase, starting with # and using allowed charset.
- * We'll support input with or without leading # and normalize.
+ * Valid inputs: /^[#]?[A-Z0-9]{3,14}$/
+ * Normalize to uppercase with a leading '#'
  */
 function validateTag(raw) {
   if (!raw) return { valid: false, message: 'Player tag is required.' };
-  const normalized = raw.trim().toUpperCase().replace(/^#/, '');
-  // Relaxed charset for tests: allow any uppercase alphanumeric characters (A-Z, 0-9)
-  // Note: Do not restrict to the Clash Royale real charset here because tests use A, B, C.
-  const allowed = /^[0-9A-Z]+$/;
-  if (normalized.length < 6 || normalized.length > 14) {
-    return { valid: false, message: 'Tag length must be between 6 and 14 characters.' };
-  }
-  if (!allowed.test(normalized)) {
-    return { valid: false, message: 'Tag contains invalid characters.' };
+  const normalized = String(raw).trim().toUpperCase().replace(/\s+/g, '').replace(/^#/, '');
+  if (!/^[A-Z0-9]{3,14}$/.test(normalized)) {
+    return { valid: false, message: 'Enter 3–14 letters/numbers. # is optional.' };
   }
   return { valid: true, tag: `#${normalized}` };
 }
 
 /**
- * Utility: Simple token validation (placeholder).
- * Token could be any non-empty string for now; real validation would be server-side.
+ * Utility: Simple token validation.
  */
 function validateToken(raw) {
   if (!raw) return { valid: false, message: 'API token is required.' };
-  if (raw.trim().length < 8) return { valid: false, message: 'API token is too short.' };
-  return { valid: true, token: raw.trim() };
+  if (String(raw).trim().length < 8) return { valid: false, message: 'API token is too short.' };
+  return { valid: true, token: String(raw).trim() };
 }
 
 /**
  * PUBLIC_INTERFACE
  * LinkAccountModal
- * A controlled modal for linking a Clash Royale account. Accepts open/close flags and handlers.
+ * Single modal with two inputs: Player Tag (default) or API Token.
+ * Validates in real-time; handles link/unlink and provides success/error banners.
  */
 export default function LinkAccountModal({
   open,
   onClose,
-  onSubmit, // optional async function receiving { tag, token }
+  onSubmit, // optional async function receiving { tag, token, mode }
   onLinked, // optional callback after successful link and refresh
 }) {
   /** This is a public function. */
@@ -69,6 +63,13 @@ export default function LinkAccountModal({
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const dispatch = useAppDispatch();
+  const linked = useAppSelector(selectCRLinked);
+  const crProfile = useAppSelector(selectCRProfile);
+
+  const firstFieldRef = useRef(null);
 
   // reset internal state when opening/closing
   useEffect(() => {
@@ -79,30 +80,39 @@ export default function LinkAccountModal({
       setTouched(false);
       setSubmitting(false);
       setError('');
+      setSuccess('');
     }
   }, [open]);
 
-  const validation = useMemo(() => {
+  // keyboard ESC to close
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose?.();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  // Autofocus first field
+  useEffect(() => {
+    if (open && firstFieldRef.current) {
+      firstFieldRef.current.focus();
+    }
+  }, [open, mode]);
+
+  const currentValidation = useMemo(() => {
     if (!touched) return { valid: false, message: '' };
     if (mode === 'tag') return validateTag(tag);
     return validateToken(token);
   }, [mode, tag, token, touched]);
 
-  const [canSubmit, setCanSubmit] = useState(false);
-  const dispatch = useAppDispatch();
-  const authWallet = useAppSelector(selectAuthWallet);
-  const verified = !!authWallet?.verified;
-
-  // Recompute canSubmit after relevant state changes, allowing React to settle between events (e.g., blur)
-  useEffect(() => {
-    const requiresVerified = !onSubmit; // internal API flow requires verified wallet session
-    const next = touched && validation.valid && !submitting && (!requiresVerified || verified);
-    setCanSubmit(Boolean(next));
-  }, [touched, validation, submitting, verified, onSubmit]);
+  const canSubmit = touched && currentValidation.valid && !submitting;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setTouched(true);
+    setSuccess('');
     setError('');
 
     const result = mode === 'tag' ? validateTag(tag) : validateToken(token);
@@ -123,15 +133,9 @@ export default function LinkAccountModal({
         return;
       }
 
-      // Require verified wallet session when using internal flow
-      if (!verified) {
-        setError('Please verify your wallet first to link your Clash Royale account.');
-        return;
-      }
-
       dispatch(setSliceLoading('crAccount', true));
-      // Perform link
-      await apiClient.crLink({
+      // Perform link via API
+      await apiCRLink({
         tag: result.tag || undefined,
         token: mode === 'token' ? result.token : undefined,
       });
@@ -139,17 +143,18 @@ export default function LinkAccountModal({
       // Refresh linked profile
       const me = await apiGetCRMe();
       dispatch(setCrAccountData(me));
-      dispatch(setSliceError('crAccount', '')); // clear any previous errors
 
       // Success feedback
-      onLinked?.(me);
-      setError(''); // clear any previous error
-      // brief success confirmation then close
+      setSuccess('Account linked successfully.');
+      setError('');
       try {
         // eslint-disable-next-line no-unused-expressions
         window?.dispatchEvent && window.dispatchEvent(new CustomEvent('cr-link-success'));
       } catch {}
-      onClose?.();
+      onLinked?.(me);
+
+      // brief delay then close
+      setTimeout(() => onClose?.(), 500);
     } catch (err) {
       const msg = err?.message || 'Unexpected error while linking account. Please try again.';
       setError(msg);
@@ -160,7 +165,30 @@ export default function LinkAccountModal({
     }
   };
 
+  const handleUnlink = async () => {
+    setSubmitting(true);
+    setError('');
+    setSuccess('');
+    try {
+      dispatch(setSliceLoading('crAccount', true));
+      await apiCRUnlink();
+      const me = await apiGetCRMe();
+      dispatch(setCrAccountData(me));
+      setSuccess('Unlinked successfully.');
+      setTimeout(() => onClose?.(), 400);
+    } catch (err) {
+      const msg = err?.message || 'Failed to unlink. Please try again.';
+      setError(msg);
+      dispatch(setSliceError('crAccount', msg));
+    } finally {
+      setSubmitting(false);
+      dispatch(setSliceLoading('crAccount', false));
+    }
+  };
+
   if (!open) return null;
+
+  const inlineError = touched && !currentValidation.valid ? currentValidation.message : '';
 
   return (
     <div
@@ -187,16 +215,27 @@ export default function LinkAccountModal({
             ×
           </button>
         </div>
+
         <p id="link-modal-desc" style={styles.subtitle}>
-          Provide your Clash Royale player tag or API token to link your account. You can switch modes below.
-          After linking, open "View CR Stats" from the header to see your read-only profile.
+          Enter your Clash Royale player tag or API token. We’ll validate as you type.
         </p>
+
+        {success && (
+          <Banner type="success" style={{ marginBottom: 8 }}>
+            {success}
+          </Banner>
+        )}
+        {error && (
+          <Banner type="error" style={{ marginBottom: 8 }}>
+            {error}
+          </Banner>
+        )}
 
         <div style={styles.segmentControl} role="tablist" aria-label="Input mode">
           <button
             role="tab"
             aria-selected={mode === 'tag'}
-            onClick={() => { setMode('tag'); setTouched(false); setError(''); }}
+            onClick={() => { setMode('tag'); setTouched(false); setError(''); setSuccess(''); }}
             style={{
               ...styles.segmentButton,
               ...(mode === 'tag' ? styles.segmentButtonActive : {}),
@@ -207,7 +246,7 @@ export default function LinkAccountModal({
           <button
             role="tab"
             aria-selected={mode === 'token'}
-            onClick={() => { setMode('token'); setTouched(false); setError(''); }}
+            onClick={() => { setMode('token'); setTouched(false); setError(''); setSuccess(''); }}
             style={{
               ...styles.segmentButton,
               ...(mode === 'token' ? styles.segmentButtonActive : {}),
@@ -226,18 +265,20 @@ export default function LinkAccountModal({
                 name="playerTag"
                 placeholder="#ABC123"
                 value={tag}
+                ref={firstFieldRef}
                 onChange={(e) => setTag(e.target.value)}
                 onBlur={() => setTouched(true)}
                 style={{
                   ...styles.input,
-                  ...(touched && !validateTag(tag).valid ? styles.inputError : {}),
+                  ...(inlineError ? styles.inputError : {}),
                 }}
-                aria-invalid={touched && !validateTag(tag).valid}
+                aria-invalid={!!inlineError}
                 aria-describedby="player-tag-help"
               />
               <div id="player-tag-help" style={styles.helpText}>
-                Find your tag in-game; include or omit the leading # (we’ll normalize it).
+                Find your tag in-game. # is optional; we’ll normalize it.
               </div>
+              <InlineError message={inlineError} />
             </div>
           ) : (
             <div style={styles.fieldGroup}>
@@ -247,29 +288,21 @@ export default function LinkAccountModal({
                 name="apiToken"
                 placeholder="Enter your API token"
                 value={token}
+                ref={firstFieldRef}
                 onChange={(e) => setToken(e.target.value)}
                 onBlur={() => setTouched(true)}
                 style={{
                   ...styles.input,
-                  ...(touched && !validateToken(token).valid ? styles.inputError : {}),
+                  ...(inlineError ? styles.inputError : {}),
                 }}
-                aria-invalid={touched && !validateToken(token).valid}
+                aria-invalid={!!inlineError}
                 aria-describedby="api-token-help"
               />
               <div id="api-token-help" style={styles.helpText}>
-                Keep this token private. It will be sent securely to the server.
+                Keep this token private. It will be sent securely.
               </div>
+              <InlineError message={inlineError} />
             </div>
-          )}
-
-          {!onSubmit && !verified && (
-            <Banner type="info">
-              Verify your Ethereum wallet to enable account linking.
-            </Banner>
-          )}
-
-          {error && (
-            <Banner type="error">{error}</Banner>
           )}
 
           <div style={styles.actions}>
@@ -293,6 +326,25 @@ export default function LinkAccountModal({
             </button>
           </div>
         </form>
+
+        {linked && (
+          <div style={styles.managePanel} aria-live="polite">
+            <div style={styles.manageHeader}>
+              <strong>Linked as {crProfile?.tag || 'Unknown'}</strong>
+              <span style={styles.manageHint}>Manage your linked account</span>
+            </div>
+            <div style={styles.manageActions}>
+              <button
+                type="button"
+                onClick={handleUnlink}
+                disabled={submitting}
+                style={styles.unlinkButton}
+              >
+                {submitting ? 'Unlinking…' : 'Unlink account'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -311,7 +363,7 @@ const styles = {
   },
   modal: {
     width: '100%',
-    maxWidth: 520,
+    maxWidth: 540,
     background: theme.surface,
     color: theme.text,
     borderRadius: 12,
@@ -394,26 +446,6 @@ const styles = {
     fontSize: 12,
     color: '#6B7280',
   },
-  errorBanner: {
-    marginTop: 8,
-    marginBottom: 8,
-    padding: '10px 12px',
-    borderRadius: 10,
-    background: '#FEF2F2',
-    color: theme.error,
-    border: `1px solid ${theme.error}33`,
-    fontSize: 14,
-  },
-  infoBanner: {
-    marginTop: 8,
-    marginBottom: 8,
-    padding: '10px 12px',
-    borderRadius: 10,
-    background: '#EFF6FF',
-    color: theme.primary,
-    border: `1px solid ${theme.primary}33`,
-    fontSize: 14,
-  },
   actions: {
     marginTop: 16,
     display: 'flex',
@@ -445,5 +477,35 @@ const styles = {
     opacity: 0.7,
     cursor: 'not-allowed',
     boxShadow: 'none',
+  },
+  managePanel: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 10,
+    border: '1px solid #E5E7EB',
+    background: '#F9FAFB',
+  },
+  manageHeader: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  manageHint: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  manageActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+  unlinkButton: {
+    background: '#FFFFFF',
+    color: '#991B1B',
+    border: '1px solid #EF4444',
+    padding: '8px 12px',
+    borderRadius: 10,
+    cursor: 'pointer',
+    fontWeight: 700,
   },
 };

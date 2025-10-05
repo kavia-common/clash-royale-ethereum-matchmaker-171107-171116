@@ -71,10 +71,23 @@ See .env.example for a template.
 ## Features
 
 - Wallet connect/disconnect with mock SIWE‑like flow.
+- Streamlined Clash Royale linking:
+  - Single Link Account modal with simple inputs (Tag or API Token).
+  - Real‑time validation, inline errors, and helper text.
+  - One‑click entry from Wallet/Status area: “Link Clash Royale” or “Manage”.
+  - Optimistic UI with loading states and clear success/error banners.
+  - Link status indicator and Unlink option.
+  - Mock mode persists link state in‑memory per wallet for preview.
 - Profiles list with wager filtering.
 - Escrow modal with dry‑run simulation.
 - Deposits dashboard and game history.
 - Ocean Professional theme and accessible UI primitives.
+
+### Clash Royale linking (mock behavior)
+
+- When REACT_APP_API_URL is not set, linking/unlinking is simulated and stored in memory for the current wallet address.
+- The “CR Status” in Wallet shows whether you are linked and your normalized tag (uppercase, leading #).
+- You can unlink from the Manage panel inside the Link Account modal.
 
 ## Development
 

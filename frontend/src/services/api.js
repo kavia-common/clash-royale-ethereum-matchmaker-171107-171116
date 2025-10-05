@@ -5,7 +5,7 @@
 // PUBLIC_INTERFACE
 // Provides API client with mock-friendly behavior. If REACT_APP_API_URL is unset,
 // returns mock handlers that simulate backend interactions (profiles, wagers,
-// auth.nonce/verify, history, deposits).
+// auth.nonce/verify, history, deposits, Clash Royale link lifecycle).
 //
 // Uses deterministic results for tests and preview with setTimeout to emulate latency.
 //
@@ -92,6 +92,17 @@ let mockHistory = [
   },
 ];
 
+/** In-memory map for mock Clash Royale link state, scoped by wallet address */
+const mockCRByAddress = new Map();
+
+/** Normalize a Clash Royale tag: uppercase, trim, strip spaces, ensure leading # */
+function normalizeCRTag(input) {
+  if (!input) return null;
+  const s = String(input).toUpperCase().replace(/\s+/g, "").replace(/^#/, "");
+  if (!/^[A-Z0-9]{3,14}$/.test(s)) return null;
+  return `#${s}`;
+}
+
 /**
  * PUBLIC_INTERFACE
  * api - returns an API client. If API_URL not provided, returns a mocked client.
@@ -114,18 +125,73 @@ function api(fetchImpl = fetch) {
       // PUBLIC_INTERFACE
       async getCRMe() {
         await delay(120);
-        if (!mockSession.address) {
-          return { linked: false, crTag: null, name: null };
+        const addr = mockSession.address;
+        if (!addr) {
+          return { linked: false, crTag: null, name: null, trophies: null };
         }
-        // deterministically map address to a fake tag
-        const tag = "#MOCK" + mockSession.address.slice(2, 6).toUpperCase();
-        return { linked: true, crTag: tag, name: "MockUser" };
+        const state = mockCRByAddress.get(addr);
+        if (!state || !state.linked) {
+          return { linked: false, crTag: null, name: null, trophies: null };
+        }
+        return { linked: true, crTag: state.crTag, name: state.name, trophies: state.trophies ?? 5200 };
       },
 
       // PUBLIC_INTERFACE
-      async crLink({ crTag }) {
+      async crLink({ tag, token, crTag }) {
         await delay(200);
-        return { linked: true, crTag, name: "LinkedUser" };
+        const addr = mockSession.address || "0xMockAddress";
+        const normalized = normalizeCRTag(tag || crTag || "#MOCK123");
+        if (!normalized) {
+          const err = new Error("Invalid player tag.");
+          err.code = "INVALID_TAG";
+          throw err;
+        }
+        // token is optional; in mock we ignore it
+        mockCRByAddress.set(addr, {
+          linked: true,
+          crTag: normalized,
+          name: "LinkedUser",
+          trophies: 5300,
+          linkedAt: Date.now(),
+        });
+        return { linked: true, crTag: normalized, name: "LinkedUser", trophies: 5300 };
+      },
+
+      // PUBLIC_INTERFACE
+      async crUnlink() {
+        await delay(120);
+        const addr = mockSession.address || "0xMockAddress";
+        mockCRByAddress.set(addr, { linked: false });
+        return { ok: true, linked: false };
+      },
+
+      // PUBLIC_INTERFACE
+      async getCRPlayer({ tag }) {
+        await delay(150);
+        const normalized = normalizeCRTag(tag) || "#MOCK123";
+        return {
+          tag: normalized,
+          name: "MockUser",
+          trophies: 5400,
+          bestTrophies: 6200,
+          expLevel: 13,
+          wins: 1234,
+          losses: 1111,
+          clan: { name: "Mock Clan" },
+          role: "member",
+        };
+      },
+
+      // PUBLIC_INTERFACE
+      async getCRFavoriteCards({ tag }) {
+        await delay(100);
+        const normalized = normalizeCRTag(tag) || "#MOCK123";
+        // derive deterministic names from tag
+        const base = normalized.slice(-4);
+        return Array.from({ length: 8 }).map((_, i) => ({
+          id: `${base}-${i}`,
+          name: `Card ${i + 1}`,
+        }));
       },
 
       // PUBLIC_INTERFACE
@@ -197,7 +263,7 @@ function api(fetchImpl = fetch) {
   }
 
   // Real client scaffold: still simple fetch wrappers; backend contract expected.
-  const base = API_URL.replace(/\/+$/, "");
+  const base = API_URL.replace(/\/*$/, "");
 
   async function req(path, opts) {
     const res = await fetchImpl(`${base}${path}`, {
@@ -205,7 +271,14 @@ function api(fetchImpl = fetch) {
       headers: { "Content-Type": "application/json", ...(opts?.headers || {}) },
       ...opts,
     });
-    if (!res.ok) throw new Error(`API error ${res.status}`);
+    if (!res.ok) {
+      let message = `API error ${res.status}`;
+      try {
+        const data = await res.json();
+        if (data?.error) message = data.error;
+      } catch {}
+      throw new Error(message);
+    }
     return res.json();
   }
 
@@ -216,11 +289,27 @@ function api(fetchImpl = fetch) {
     },
     // PUBLIC_INTERFACE
     getCRMe() {
+      // Depending on backend, this might be /cr/me; we normalize here
       return req("/me/cr", { method: "GET" });
     },
     // PUBLIC_INTERFACE
     crLink(body) {
+      // Accept { tag, token } or { crTag }
       return req("/me/cr/link", { method: "POST", body: JSON.stringify(body) });
+    },
+    // PUBLIC_INTERFACE
+    crUnlink() {
+      return req("/me/cr/link", { method: "DELETE" });
+    },
+    // PUBLIC_INTERFACE
+    getCRPlayer({ tag, token }) {
+      const q = new URLSearchParams({ tag, token: token || "" }).toString();
+      return req(`/cr/player?${q}`, { method: "GET" });
+    },
+    // PUBLIC_INTERFACE
+    getCRFavoriteCards({ tag, token }) {
+      const q = new URLSearchParams({ tag, token: token || "" }).toString();
+      return req(`/cr/favorites?${q}`, { method: "GET" });
     },
     // PUBLIC_INTERFACE
     initWager(body) {
@@ -270,13 +359,17 @@ export const apiGetLiveWagers = (fetchImpl) => api(fetchImpl).getLive();
 export const apiGetHistory = (fetchImpl) => api(fetchImpl).getHistory();
 // Backward-compatible alias expected by GameHistoryPage and possibly tests
 export const apiGetGameHistory = (fetchImpl) => api(fetchImpl).getHistory();
-export const apiAuthNonce = (fetchImpl) => api(fetchImpl).auth.nonce();
-export const apiAuthVerify = (body, fetchImpl) => api(fetchImpl).auth.verify(body);
+// Clash Royale helpers for dashboard
+export const apiGetCRPlayer = (args, fetchImpl) => api(fetchImpl).getCRPlayer(args);
+export const apiGetCRFavoriteCards = (args, fetchImpl) => api(fetchImpl).getCRFavoriteCards(args);
+// CR link lifecycle named exports
+export const apiCRLink = (args, fetchImpl) => api(fetchImpl).crLink(args);
+export const apiCRUnlink = (fetchImpl) => api(fetchImpl).crUnlink();
 
-/**
- * PUBLIC_INTERFACE
- * Default export shim for compatibility: returns the api client instance created with default fetch.
- * If called with no args, it uses global fetch. When a fetchImpl is passed, it will be used instead.
- */
+//
+// PUBLIC_INTERFACE
+// Default export shim for compatibility: returns the api client instance created with default fetch.
+// If called with no args, it uses global fetch. When a fetchImpl is passed, it will be used instead.
+//
 const apiClient = (fetchImpl) => api(fetchImpl);
 export default apiClient;
