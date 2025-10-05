@@ -1,94 +1,204 @@
-# Lightweight React Template for KAVIA
+# Clash Royale Ethereum Matchmaker — Frontend
 
-This project provides a minimal React template with a clean, modern UI and minimal dependencies.
+This React app lets users link Clash Royale accounts, browse profiles, filter by wager, initiate matches, and deposit ETH into escrow. It supports mock API and dry‑run escrow modes for rapid local development, and can be configured to use real backend services and a testnet like Sepolia.
 
-## Features
+## Project overview and features
 
-- **Lightweight**: No heavy UI frameworks - uses only vanilla CSS and React
-- **Modern UI**: Clean, responsive design with KAVIA brand styling
-- **Fast**: Minimal dependencies for quick loading times
-- **Simple**: Easy to understand and modify
+The UI provides:
+- Wallet status and network checks, with an option to switch to the expected chain.
+- Profile listing with wager range filters and quick presets.
+- A streamlined Link Account modal to link a Clash Royale account by player tag or token.
+- An Escrow modal to initiate and complete ETH deposits required by both players.
+- A Game History page with a live feed and historical wagers.
 
-## Getting Started
+Core files:
+- API client: `src/services/api.js`
+- Blockchain client: `src/services/blockchain.js`
+- Wallet hook: `src/hooks/useEthereumWallet.js`
+- UI: `src/components/ProfileList.jsx`, `src/components/WagerFilter.jsx`, `src/components/WalletStatus.jsx`, `src/components/EscrowModal.jsx`, `src/pages/GameHistoryPage.jsx`
 
-Environment
-- Copy .env.example to .env and set:
-  - REACT_APP_API_URL: your backend base URL (e.g., http://localhost:8000)
-  - REACT_APP_ESCROW_ADDRESS: escrow contract address on the active chain
+## Quick start (Preview vs Real integration)
 
-Integration
-- API calls are centralized in src/services/api.js
-- Ethers escrow deposit helper is in src/services/blockchain.js
-- Profile list fetches data from backend; Escrow flow hits backend and contract
-- Clash Royale linking & stats (read-only): After linking via LinkAccountModal (tag or token), open the ClashRoyaleDashboard to view player profile and trophies. Stats are fetched by the backend from Supercell’s official API; no tokens are sent directly to Supercell from the browser.
+Preview (no backend or contracts):
+1) Install and run:
+   - `cd frontend`
+   - `npm install`
+   - `npm start`
+2) Do not set `REACT_APP_API_URL` to enable mock API mode.
+3) Leave `REACT_APP_ESCROW_ADDRESS` unset or set `REACT_APP_DRY_RUN_ESCROW=true` to enable dry‑run escrow mode.
+4) Open http://localhost:3000 and explore:
+   - Use the Wager Filter to adjust listing ranges.
+   - Click Challenge on a profile to open the Escrow modal.
+   - Connect a wallet to see wallet UI; deposits are simulated in dry‑run.
 
+Real integration (backend + testnet):
+1) Create `frontend/.env` with:
+   - `REACT_APP_API_URL=https://your-backend.example.com`
+   - `REACT_APP_CHAIN_ID=11155111` (Sepolia)
+   - `REACT_APP_ESCROW_ADDRESS=0xYourEscrowAddress`
+   - Optional: `REACT_APP_BLOCK_EXPLORER_BASE=https://sepolia.etherscan.io`
+   - Optional: `REACT_APP_DRY_RUN_ESCROW=false`
+2) Restart `npm start` to pick up environment changes.
+3) Ensure your wallet is on the expected chain; the UI will warn if mismatched.
 
-In the project directory, you can run:
+## Configuration matrix
 
-### `npm start`
+- Mock API mode:
+  - Active when `REACT_APP_API_URL` is NOT set.
+  - Profiles, live wagers, history, and SIWE‑like auth are simulated in `src/services/api.js`.
+  - UI shows informational banners in places like ProfileList and WalletStatus.
 
-Runs the app in development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- Dry‑run escrow mode:
+  - Active when `REACT_APP_DRY_RUN_ESCROW=true` OR `REACT_APP_ESCROW_ADDRESS` is not set.
+  - Deposits are simulated in `src/services/blockchain.js` and return synthetic tx hashes.
+  - The Escrow modal displays a dry‑run banner.
 
-### `npm test`
+- Real mode:
+  - Set `REACT_APP_API_URL`, `REACT_APP_CHAIN_ID`, and `REACT_APP_ESCROW_ADDRESS`.
+  - Provide the contract ABI and finalize the on‑chain call in `src/services/blockchain.js`.
 
-Launches the test runner in interactive watch mode.
+## Environment variables
 
-### `npm run build`
+Set in `frontend/.env`. Only variables prefixed with `REACT_APP_` are exposed to the React app.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- `REACT_APP_API_URL`
+  - Description: Backend base URL (e.g., http://localhost:8000).
+  - Behavior: If omitted, the app runs in Mock API mode.
 
-## Customization
+- `REACT_APP_DRY_RUN_ESCROW`
+  - Description: `"true"` to simulate deposits and confirmations.
+  - Behavior: Dry‑run is also active if `REACT_APP_ESCROW_ADDRESS` is not set.
 
-### Colors
+- `REACT_APP_ESCROW_ADDRESS`
+  - Description: Escrow contract address for real deposits (0x‑prefixed, 40 hex chars).
+  - Behavior: Required for real deposits; leave empty for dry‑run.
 
-The main brand colors are defined as CSS variables in `src/App.css`:
+- `REACT_APP_CHAIN_ID`
+  - Description: Numeric chain ID (e.g., `11155111` for Sepolia).
+  - Behavior: UI warns when the wallet is connected to a different chain.
 
-```css
-:root {
-  --kavia-orange: #E87A41;
-  --kavia-dark: #1A1A1A;
-  --text-color: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.7);
-  --border-color: rgba(255, 255, 255, 0.1);
-}
-```
+- `REACT_APP_BLOCK_EXPLORER_BASE` (optional)
+  - Description: Explorer base URL (e.g., https://sepolia.etherscan.io).
+  - Behavior: Enables explorer links to transactions and addresses.
 
-### Components
+Notes:
+- Keep `.env` files out of version control.
+- The app logs helpful warnings in development when env vars are missing or invalid.
 
-This template uses pure HTML/CSS components instead of a UI framework. You can find component styles in `src/App.css`. 
+## Mock vs Real behavior (banners, dry‑run escrow, API fallbacks)
 
-Common components include:
-- Buttons (`.btn`, `.btn-large`)
-- Container (`.container`)
-- Navigation (`.navbar`)
-- Typography (`.title`, `.subtitle`, `.description`)
+- Banners:
+  - WalletStatus shows a banner when the app is in mock API mode or dry‑run escrow mode.
+  - ProfileList displays an info banner when using deterministic mock data.
 
-## Learn More
+- Dry‑run escrow:
+  - In `src/services/blockchain.js`, deposits return a simulated tx hash when dry‑run is active.
+  - The Escrow modal displays a message indicating no real funds are used.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+- API fallbacks:
+  - When `REACT_APP_API_URL` is absent, `src/services/api.js` returns mock data for:
+    - Profiles (getProfiles)
+    - Live wagers (getLiveWagers)
+    - History (getWagerHistory)
+    - Link/verify flows (crLink, crMe, auth.nonce/verify)
 
-### Code Splitting
+## Ethereum wallet & network setup (chain match, switch network CTA)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+- Wallet connection is managed via `src/hooks/useEthereumWallet.js`.
+  - Connect: Prompts the browser wallet for accounts.
+  - Optional SIWE‑like flow: The app requests a nonce and verifies a signature through `api.auth`.
+- Chain/network:
+  - The app compares the wallet’s `chainId` to `REACT_APP_CHAIN_ID`.
+  - A warning appears for mismatched networks, and a “Switch Network” CTA is shown when supported.
+- Recommended testnet (Sepolia):
+  - `REACT_APP_CHAIN_ID=11155111`
+  - `REACT_APP_BLOCK_EXPLORER_BASE=https://sepolia.etherscan.io`
 
-### Analyzing the Bundle Size
+## Expected backend endpoints and payloads
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+The UI uses the following endpoints when `REACT_APP_API_URL` is set. Shapes are described in detail in `frontend/INTEGRATION_NOTES.md`.
 
-### Making a Progressive Web App
+Auth/session:
+- `POST /auth/wallet-nonce` → `{ nonce }`
+- `POST /auth/wallet-verify` → `{ ok: true, user: { id, address } }`
+- `GET /me` → `{ id, address }`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+Clash Royale linking:
+- `POST /cr/link` → `{ ok: true, linked: true, tag?: string }`
+- `GET /cr/me` → `CRProfile`
 
-### Advanced Configuration
+Profiles:
+- `GET /profiles?minWager&maxWager&cursor` → `{ items: UserProfile[], nextCursor?: string }`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+Wagers:
+- `GET /wagers/live` → `{ items: Wager[] }` or `Wager[]`
+- `GET /wagers/history` → `{ items: GameHistoryItem[] }` or `GameHistoryItem[]`
+- `POST /wagers/initiate` → `{ id: string, status: "initiated" | "awaiting-deposits" }`
+- `POST /wagers/:id/deposit` → `{ ok: true, status: ... }`
+- `POST /wagers/:id/confirm` → `{ ok: true, status: "ready" | "in-progress" }`
+- `POST /wagers/:id/cancel` → `{ ok: true, status: "cancelled" }`
+- `POST /wagers/:id/result` → `{ ok: true, status: "completed" }`
 
-### Deployment
+Escrow helpers:
+- `GET /escrow/config` → `{ escrowAddress, chainId, minWagerEth?, maxWagerEth? }`
+- `GET /escrow/:wagerId/status` → `{ wagerId, status, deposits: {...} }`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+See `frontend/INTEGRATION_NOTES.md` for complete models, error shapes, and flow details.
 
-### `npm run build` fails to minify
+## Escrow contract notes and explorer links
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- Real mode:
+  - `src/services/blockchain.js` expects a `deposit(uint256 wagerId) payable` function and uses ethers.js.
+  - Replace the placeholder ABI with the actual contract ABI.
+- Dry‑run mode:
+  - Controlled by `REACT_APP_DRY_RUN_ESCROW=true` or missing `REACT_APP_ESCROW_ADDRESS`.
+  - Returns synthetic tx hashes and marks receipts as simulated.
+- Explorer links:
+  - Set `REACT_APP_BLOCK_EXPLORER_BASE` (e.g., `https://sepolia.etherscan.io`).
+  - The blockchain client builds transaction links via `formatTxLink`.
+
+## Troubleshooting
+
+- Mock data instead of backend:
+  - Cause: `REACT_APP_API_URL` not set (mock mode).
+  - Fix: Provide a valid API base URL in `.env` and restart.
+
+- Deposits simulate instead of sending real tx:
+  - Cause: `REACT_APP_DRY_RUN_ESCROW=true` or `REACT_APP_ESCROW_ADDRESS` not set.
+  - Fix: Set `REACT_APP_DRY_RUN_ESCROW=false` and configure `REACT_APP_ESCROW_ADDRESS`.
+
+- Wrong network:
+  - Symptom: WalletStatus shows a network mismatch banner.
+  - Fix: Switch your wallet to `REACT_APP_CHAIN_ID`. A “Switch Network” button is shown when supported.
+
+- No wallet detected:
+  - Symptom: Connect button errors.
+  - Fix: Install MetaMask or another EIP‑1193 wallet provider.
+
+- API errors (401/403):
+  - Symptom: Protected routes fail.
+  - Fix: Complete wallet verification (nonce + signature) and ensure cookies/tokens are accepted by the backend (CORS with credentials).
+
+- Missing explorer links:
+  - Symptom: No link shown after a successful tx.
+  - Fix: Provide `REACT_APP_BLOCK_EXPLORER_BASE` in `.env`.
+
+## Safety disclaimer (no real funds in dry‑run)
+
+When dry‑run is active, all escrow deposits are simulated. No real transactions are submitted and no real funds are moved. Always verify:
+- You are connected to the correct chain (`REACT_APP_CHAIN_ID`).
+- `REACT_APP_ESCROW_ADDRESS` is the intended contract address before enabling real deposits.
+- The ABI and method signature in `src/services/blockchain.js` match your deployed contract.
+
+## Scripts
+
+- `npm start`: Run the app locally at http://localhost:3000
+- `npm test`: Run the test suite
+- `npm run build`: Build production assets
+
+## Additional documentation
+
+- `frontend/INTEGRATION_NOTES.md`: Backend endpoints, models, SIWE‑like flow, escrow assumptions, and deployment notes.
+- `src/services/api.js` and `src/services/blockchain.js`: The API and escrow client implementations.
+- `src/hooks/useEthereumWallet.js`: Wallet connection, chain checks, and optional signature flow.
+
