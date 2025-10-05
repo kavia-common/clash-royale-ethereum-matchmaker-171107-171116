@@ -107,8 +107,14 @@ export default function ProfileList({ profiles = [], filter = { min: 0, max: Inf
       try {
         await apiConfirmDeposit({ matchId, txHash: depositRes.txHash });
       } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to confirm deposit with backend. You may need to refresh status manually.', e);
+        // Retry once after brief delay
+        try {
+          await new Promise((r) => setTimeout(r, 800));
+          await apiConfirmDeposit({ matchId, txHash: depositRes.txHash });
+        } catch (e2) {
+          // eslint-disable-next-line no-console
+          console.warn('Failed to confirm deposit with backend after retry.', e2);
+        }
       }
     }
     return { txHash: depositRes?.txHash };

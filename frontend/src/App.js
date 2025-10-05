@@ -155,11 +155,7 @@ function App() {
             <div style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 16px' }}>
               <Banner
                 variant="warning"
-                message={
-                  <>
-                    Running in mock/dry-run mode. Some blockchain and API flows are simulated.
-                  </>
-                }
+                message={<>Running in mock/dry-run mode. Some blockchain and API flows are simulated.</>}
                 action={{ label: 'README', href: 'https://github.com' }}
               />
             </div>

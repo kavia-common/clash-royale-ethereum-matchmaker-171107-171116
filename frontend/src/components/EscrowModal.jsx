@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { truncateAddress, useEthereumWallet } from '../hooks/useEthereumWallet';
+import { formatTxLink } from '../services/blockchain';
 
 /**
  * Ocean Professional theme tokens
@@ -42,7 +43,7 @@ export default function EscrowModal({
   onComplete,
 }) {
   /** This is a public function. */
-  const { isConnected, address, connect, theme: walletTheme } = useEthereumWallet();
+  const { isConnected, address, connect, chainId } = useEthereumWallet();
   const [wager, setWager] = useState(defaultWager || opponent?.wagerEth || 0.1);
   const [step, setStep] = useState('review'); // 'review' | 'confirm' | 'pending' | 'success' | 'failure'
   const [error, setError] = useState('');
@@ -86,6 +87,14 @@ export default function EscrowModal({
     if (!isConnected) {
       setError('Wallet not connected. Please connect your wallet.');
       return;
+    }
+    const expected = process.env.REACT_APP_CHAIN_ID;
+    if (expected && chainId) {
+      const norm = (v) => (typeof v === 'string' && v.startsWith('0x') ? String(parseInt(v, 16)) : String(v));
+      if (norm(expected) !== norm(chainId)) {
+        setError('Wrong network selected. Please switch to the expected chain.');
+        return;
+      }
     }
     setStep('pending');
     try {
@@ -288,15 +297,41 @@ function StateIndicator({ step, txHash }) {
     );
   }
   if (step === 'success') {
+    const link = formatTxLink(process.env.REACT_APP_CHAIN_ID, txHash);
     return (
       <div style={styles.stateRowSuccess}>
         <span aria-hidden="true">✅</span>
-        <div style={styles.stateText}>
-          Deposit confirmed. Tx:{' '}
-          {txHash ? (
-            <code style={styles.txHash}>{txHash.slice(0, 18)}…</code>
-          ) : (
-            <code style={styles.txHash}>N/A</code>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={styles.stateText}>
+            Deposit confirmed. Tx:{' '}
+            {txHash ? (
+              <code style={styles.txHash}>{txHash.slice(0, 18)}…</code>
+            ) : (
+              <code style={styles.txHash}>N/A</code>
+            )}
+          </div>
+          {txHash && (
+            <>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(txHash)}
+                style={styles.copyBtn}
+                aria-label="Copy transaction hash"
+              >
+                Copy hash
+              </button>
+              {link && (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={styles.linkBtn}
+                  aria-label="View transaction on explorer"
+                >
+                  View on Explorer
+                </a>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -571,6 +606,25 @@ const styles = {
     fontFamily:
       'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
     fontSize: 12,
+  },
+  copyBtn: {
+    background: '#F3F4F6',
+    color: '#111827',
+    border: '1px solid #E5E7EB',
+    padding: '6px 10px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 600,
+  },
+  linkBtn: {
+    background: '#2563EB',
+    color: '#ffffff',
+    border: '1px solid transparent',
+    padding: '6px 10px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontWeight: 700,
+    textDecoration: 'none',
   },
 };
 

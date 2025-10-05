@@ -115,3 +115,28 @@ input:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.35);
   outline-offset: 2px;
 }
+
+/* Ocean Professional button utilities */
+.btn-primary {
+  background: #2563EB;
+  color: #fff;
+  border: 1px solid transparent;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(37,99,235,0.35);
+}
+.btn-secondary {
+  background: #F3F4F6;
+  color: #111827;
+  border: 1px solid #E5E7EB;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.ui-banner a.ui-banner-action,
+.ui-banner button.ui-banner-action-btn {
+  color: #1d4ed8;
+}

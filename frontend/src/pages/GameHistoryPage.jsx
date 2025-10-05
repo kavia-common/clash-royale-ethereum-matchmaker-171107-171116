@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import GameHistoryDashboard from '../components/GameHistoryDashboard';
 import { apiGetLiveWagers, apiGetGameHistory } from '../services/api';
 import HeaderImg from '../assets/GAME_HISTORY_HEADER.png';
+import { Banner } from '../components/ui';
 
 // PUBLIC_INTERFACE
 export default function GameHistoryPage({ prefetching, initialLive, initialHistory }) {
@@ -53,6 +54,22 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
     return () => { canceled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Poll live wagers every 10s to keep pending deposits fresh
+  useEffect(() => {
+    let stop = false;
+    const tick = async () => {
+      try {
+        const live = await apiGetLiveWagers();
+        if (!stop) setLiveData(live);
+      } catch {
+        // ignore
+      }
+    };
+    const id = setInterval(tick, 10000);
+    tick();
+    return () => { stop = true; clearInterval(id); };
+  }, []);
+
   // Provide a fetcher that returns the latest historyData or fetches fresh
   const historyFetcher = async () => {
     if (historyData) return historyData;
@@ -63,6 +80,16 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
 
   return (
     <div className="game-history-bg" style={styles.pageWrap}>
+      {/* Mock/dry-run banner */}
+      {(!process.env.REACT_APP_API_URL || String(process.env.REACT_APP_DRY_RUN_ESCROW || '') === 'true') && (
+        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 16px' }}>
+          <Banner
+            variant="warning"
+            message="Running in mock/dry-run mode. Explorer links and blockchain interactions may be simulated."
+          />
+        </div>
+      )}
+
       {/* Visual header with background image and overlay for readability */}
       <section aria-label="Game History Header" style={styles.heroWrap}>
         <img

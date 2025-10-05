@@ -303,7 +303,58 @@ export function createApiClient(baseUrl = BASE_URL) {
 }
 
 // Default client bound to env base URL
-const defaultClient = createApiClient();
+const defaultClient = (function () {
+  if (BASE_URL) return createApiClient(BASE_URL);
+
+  // Mock client when no backend URL is provided
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+  const mock = {
+    async getLiveWagers() {
+      await delay(200);
+      return [{ id: 'w1', status: 'awaiting-deposits', players: { challenger: 'You', opponent: 'AquaKnight' }, amounts: { challengerEth: 0.1, opponentEth: 0.1 } }];
+    },
+    async getWagerHistory() {
+      await delay(200);
+      return [
+        { id: 'h1', date: new Date().toISOString(), opponent: 'BlueWhale', wagerEth: 0.2, result: 'win', profitEth: 0.2 },
+        { id: 'h2', date: new Date(Date.now() - 86400000).toISOString(), opponent: 'StormRider', wagerEth: 0.1, result: 'loss', profitEth: -0.1 },
+      ];
+    },
+    async getProfiles() {
+      await delay(150);
+      return [
+        { id: 'p1', username: 'AquaKnight', rank: 'Gold', wagerEth: 0.25 },
+        { id: 'p2', username: 'StormRider', rank: 'Silver', wagerEth: 0.75 },
+        { id: 'p3', username: 'BlueWhale', rank: 'Platinum', wagerEth: 0.15 },
+      ];
+    },
+    async initiateWager({ opponentId, wagerEth }) {
+      await delay(200);
+      return { matchId: 'mock-' + Math.random().toString(36).slice(2, 8), opponentId, wagerEth };
+    },
+    async depositNotify({ id, txHash }) {
+      await delay(120);
+      return { ok: true, id, txHash };
+    },
+    async getEscrowStatus({ wagerId }) {
+      await delay(120);
+      return { id: wagerId, status: 'awaiting-opponent' };
+    },
+    async getWalletNonce() {
+      await delay(80);
+      return { nonce: Math.floor(Math.random() * 1e6).toString() };
+    },
+    async verifyWalletSignature() {
+      await delay(80);
+      return { ok: true, user: { id: 'mock-user' } };
+    },
+    async crLink() { await delay(120); return { ok: true }; },
+    async crMe() { await delay(80); return { tag: '#MOCK', name: 'Demo' }; },
+    async getCRPlayer() { await delay(80); return { tag: '#MOCK', name: 'Demo' }; },
+    async getCRFavoriteCards() { await delay(80); return { cards: [] }; },
+  };
+  return mock;
+})();
 
 /**
  * Backward-compatible named exports

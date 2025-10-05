@@ -33,6 +33,7 @@ const ENV = {
   ESCROW_ADDRESS: getEnv('REACT_APP_ESCROW_ADDRESS'),
   CHAIN_ID: getEnv('REACT_APP_CHAIN_ID'),
   EXPLORER: getEnv('REACT_APP_BLOCK_EXPLORER_BASE'),
+  DRY_RUN: String(getEnv('REACT_APP_DRY_RUN_ESCROW') || '') === 'true',
 };
 
 if (process.env.NODE_ENV !== 'production') {
@@ -124,19 +125,20 @@ export class BlockchainClient {
    */
   async deposit({ wagerId, amountEth, options } = {}) {
     /** This is a public function. */
+    // Simulate in dry-run or when no contract address available
+    if (ENV.DRY_RUN || !this.escrowAddress) {
+      const txHash = '0x' + Math.random().toString(16).slice(2).padEnd(64, '0').slice(0, 64);
+      return { txHash, receipt: { status: 'simulated' } };
+    }
+
     if (!this.signer) {
       throw new Error('No signer found. Please connect your wallet.');
-    }
-    if (!this.escrowAddress) {
-      throw new Error('Missing REACT_APP_ESCROW_ADDRESS. Set it in the environment.');
     }
     const numericWagerId = Number.isFinite(Number(wagerId)) ? Number(wagerId) : 0;
     const value = ethers.utils.parseEther(String(amountEth));
 
-    // Instantiate contract and attempt gas estimation (optional).
     const contract = new ethers.Contract(this.escrowAddress, this.escrowAbi, this.signer);
     try {
-      // TODO: uncomment and adjust parameter order if estimation is desired and ABI is confirmed.
       // await contract.estimateGas.deposit(numericWagerId, { value, ...(options || {}) });
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -173,4 +175,13 @@ export async function sendEscrowDeposit({ signer, matchId, amountEth, escrowAddr
   /** This is a public function. */
   const client = new BlockchainClient({ escrowAddress, escrowAbi, signer });
   return client.deposit({ wagerId: matchId, amountEth });
+}
+
+// PUBLIC_INTERFACE
+export function formatTxLink(chainId, txHash) {
+  /** Create an explorer link using REACT_APP_BLOCK_EXPLORER_BASE if provided. */
+  if (!txHash) return undefined;
+  const base = ENV.EXPLORER;
+  if (!base) return undefined;
+  return `${base.replace(/\/+$/, '')}/tx/${txHash}`;
 }

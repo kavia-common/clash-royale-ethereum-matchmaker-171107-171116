@@ -150,6 +150,22 @@ export default function WalletStatus() {
     return normalize(expected) !== normalize(chainId) ? 'Wrong network selected.' : '';
   }, [chainId]);
 
+  const switchNetwork = useCallback(async () => {
+    try {
+      if (!provider?.provider?.request) return;
+      const target = process.env.REACT_APP_CHAIN_ID;
+      if (!target) return;
+      const hex = typeof target === 'string' && target.startsWith('0x') ? target : '0x' + Number(target).toString(16);
+      await provider.provider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: hex }],
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('Switch network failed', e);
+    }
+  }, [provider]);
+
   const connectDisabled = connecting;
   const verifyDisabled = verifying || !isConnected || verified;
 
@@ -196,6 +212,17 @@ export default function WalletStatus() {
           </button>
         ) : (
           <>
+            {wrongNetworkHint && (
+              <button
+                type="button"
+                onClick={switchNetwork}
+                style={styles.secondaryButton}
+                aria-label="Switch Network"
+                title="Switch to expected network"
+              >
+                Switch Network
+              </button>
+            )}
             {!verified && (
               <button
                 type="button"
