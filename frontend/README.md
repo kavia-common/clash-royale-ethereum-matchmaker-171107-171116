@@ -80,3 +80,11 @@ See .env.example for a template.
 
 - Components and services are documented with PUBLIC_INTERFACE markers.
 - Tests pass in CI using mock mode; no external services are required.
+
+## Alignment with backend roadmap
+
+Refer to the workspace README’s Backend Roadmap for the concise execution plan covering:
+- SIWE‑lite auth, profiles, Clash Royale linking,
+- wagers lifecycle with escrow + indexer/webhooks,
+- security, docker‑compose dev setup, suggested stack,
+- endpoint list, env var mapping, and next steps.

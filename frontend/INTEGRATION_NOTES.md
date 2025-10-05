@@ -303,11 +303,14 @@ Adjust types to your implementation and update:
 - Staging: testnet address and ABI + CORS with credentials.
 - Production: HTTPS, correct chain, hardened cookies, and on‑chain verification/indexing.
 
-## References
+## Backend parity checklist
 
-- Source files in this repo:
-  - frontend/src/services/api.js
-  - frontend/src/services/blockchain.js
-  - frontend/src/hooks/useEthereumWallet.js
-  - frontend/src/components/README_ESCROW.md
+Ensure the backend implements these endpoints (as described in the workspace README roadmap):
+- Auth: /auth/nonce, /auth/verify, /auth/me, /auth/logout
+- Profiles: /profiles, /profiles/:walletAddress, /profiles/me (PATCH)
+- Clash Royale link: /link/cr/init, /link/cr/verify, /link/cr (DELETE)
+- Wagers: /wagers (create/list), /wagers/:id, /wagers/:id/ready, /wagers/:id/result, /wagers/:id/cancel
+- Webhooks/Indexer: /webhooks/escrow-events
+- Health: /healthz, /readyz
 
+Backend environment variables required are listed in the workspace .env.example.

@@ -268,6 +268,8 @@ export const apiGetLive = (fetchImpl) => api(fetchImpl).getLive();
 // Alias used by some components/tests
 export const apiGetLiveWagers = (fetchImpl) => api(fetchImpl).getLive();
 export const apiGetHistory = (fetchImpl) => api(fetchImpl).getHistory();
+// Backward-compatible alias expected by GameHistoryPage and possibly tests
+export const apiGetGameHistory = (fetchImpl) => api(fetchImpl).getHistory();
 export const apiAuthNonce = (fetchImpl) => api(fetchImpl).auth.nonce();
 export const apiAuthVerify = (body, fetchImpl) => api(fetchImpl).auth.verify(body);
 

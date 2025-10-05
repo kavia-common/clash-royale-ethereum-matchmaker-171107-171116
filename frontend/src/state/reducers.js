@@ -18,17 +18,29 @@ const initial = {
 export function rootReducer(state = initial, action) {
   switch (action.type) {
     case types.SET_PROFILES:
-      return { ...state, profiles: action.profiles || [] };
+      // actions.setProfiles(payloadArray) => { type: 'PROFILES_SET', payload: items }
+      return { ...state, profiles: Array.isArray(action.payload) ? action.payload : [] };
+
     case types.SET_WAGERS:
-      return { ...state, wagers: action.wagers || [] };
+      // actions.setWagersLive(payloadArray) => { type: 'WAGERS_LIVE_SET', payload: items }
+      return { ...state, wagers: Array.isArray(action.payload) ? action.payload : [] };
+
     case types.ADD_WAGER:
-      return { ...state, wagers: [action.wager, ...state.wagers] };
+      // Not actively used; keep for forward-compat
+      return { ...state, wagers: action.wager ? [action.wager, ...(state.wagers || [])] : state.wagers };
+
     case types.SET_HISTORY:
-      return { ...state, history: action.history || [] };
+      // actions.setWagersHistory(payloadArray) => { type: 'WAGERS_HISTORY_SET', payload: items }
+      return { ...state, history: Array.isArray(action.payload) ? action.payload : [] };
+
     case types.SET_LOADING:
-      return { ...state, ui: { ...state.ui, loading: !!action.loading } };
+      // actions.setSliceLoading(slice, loading) => payload { slice, loading }
+      return { ...state, ui: { ...state.ui, loading: !!(action.payload && action.payload.loading) } };
+
     case types.SET_ERROR:
-      return { ...state, ui: { ...state.ui, error: action.error || null } };
+      // actions.setSliceError(slice, error) => payload { slice, error }
+      return { ...state, ui: { ...state.ui, error: action.payload ? action.payload.error || null : null } };
+
     default:
       return state;
   }
