@@ -9,8 +9,10 @@ import Spinner from "./ui/Spinner";
  * Uses the API client in mock mode when REACT_APP_API_URL is not set.
  * Props:
  * - onBanner?: function({type,msg})
+ * - onDeposit?: function() optional button callback
+ * - onWithdraw?: function() optional button callback
  */
-export default function DepositsDashboard({ onBanner }) {
+export default function DepositsDashboard({ onBanner, onDeposit, onWithdraw }) {
   const [wagers, setWagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -42,7 +44,19 @@ export default function DepositsDashboard({ onBanner }) {
 
   return (
     <div>
-      <h3>Your Wagers</h3>
+      <div className="row space-between">
+        <h3>Your Wagers</h3>
+        {(onDeposit || onWithdraw) && (
+          <div className="row" style={{ gap: 8 }}>
+            {onDeposit && (
+              <button className="btn-primary" onClick={onDeposit}>Deposit</button>
+            )}
+            {onWithdraw && (
+              <button className="btn-secondary" onClick={onWithdraw}>Withdraw</button>
+            )}
+          </div>
+        )}
+      </div>
       {wagers.length === 0 && <div className="muted">No live wagers.</div>}
       {wagers.map((w) => (
         <div key={w.id} className="card row space-between">

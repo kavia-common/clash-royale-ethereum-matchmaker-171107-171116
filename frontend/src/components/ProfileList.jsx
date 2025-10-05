@@ -8,8 +8,9 @@ import Skeleton from "./ui/Skeleton";
  * - profiles: array of profile items
  * - loading: boolean
  * - onChallenge(profile): function
+ * - onDeposit?: function() optional
  */
-export default function ProfileList({ profiles = [], loading = false, onChallenge }) {
+export default function ProfileList({ profiles = [], loading = false, onChallenge, onDeposit }) {
   if (loading) {
     return (
       <div className="grid">
@@ -38,7 +39,7 @@ export default function ProfileList({ profiles = [], loading = false, onChalleng
                 </div>
               )}
             </div>
-            <div>
+            <div className="row" style={{ gap: 8 }}>
               <button
                 className="btn-secondary"
                 onClick={() => onChallenge?.(p)}
@@ -46,6 +47,11 @@ export default function ProfileList({ profiles = [], loading = false, onChalleng
               >
                 Challenge
               </button>
+              {onDeposit && (
+                <button className="btn" onClick={() => onDeposit()} aria-label="Deposit">
+                  Deposit
+                </button>
+              )}
             </div>
           </div>
         </div>

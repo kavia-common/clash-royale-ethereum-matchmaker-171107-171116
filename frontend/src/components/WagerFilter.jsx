@@ -6,11 +6,21 @@ import React, { useEffect, useState } from "react";
  * Props:
  * - onChange({min,max,q})
  * - applyFilter({min,max,q}) backward-compatible alias
+ * - value?: {min,max,q} optional controlled value
  */
-export default function WagerFilter({ onChange, applyFilter }) {
+export default function WagerFilter({ onChange, applyFilter, value }) {
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
   const [q, setQ] = useState("");
+
+  // sync from controlled value if provided
+  useEffect(() => {
+    if (value) {
+      setMin(value.min == null ? "" : String(value.min));
+      setMax(value.max == null ? "" : String(value.max));
+      setQ(value.q || "");
+    }
+  }, [value?.min, value?.max, value?.q]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const payload = {

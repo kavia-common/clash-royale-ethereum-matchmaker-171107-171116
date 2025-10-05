@@ -3,21 +3,18 @@ import "./index.css";
 import "./theme.css";
 import "./App.css";
 import WalletStatus from "./components/WalletStatus";
-import ProfileList from "./components/ProfileList";
-import WagerFilter from "./components/WagerFilter";
-import DepositsDashboard from "./components/DepositsDashboard";
 import GameHistoryPage from "./pages/GameHistoryPage";
 import LinkAccountModal from "./components/LinkAccountModal";
 import Banner from "./components/ui/Banner";
-import { api, apiGetProfiles } from "./services/api";
+import AllInOnePage from "./pages/AllInOnePage";
 
 /**
  * PUBLIC_INTERFACE
- * App provides a single-page layout for the matchmaker with:
- * - Header + navigation and WalletStatus
- * - Left filter panel
- * - Center ProfileList
- * Also includes routes for history/settings via light path management (no react-router dependency needed).
+ * App provides top-level navigation and banners, and renders pages:
+ * - "/" AllInOnePage (unified view)
+ * - "/history" GameHistoryPage
+ * - "/settings" Settings (inline section)
+ * Uses simple pushState routing to avoid changing deps.
  */
 export default function App() {
   // env memoization: read once
@@ -67,103 +64,26 @@ export default function App() {
   // link modal control
   const [linkOpen, setLinkOpen] = useState(false);
 
-  // Profiles + filters state
-  const [profiles, setProfiles] = useState([]);
-  const [filters, setFilters] = useState({ min: null, max: null, q: "" });
-  const [loadingProfiles, setLoadingProfiles] = useState(true);
-  const [opponent, setOpponent] = useState(null); // when user clicks Challenge
-  const [escrowOpen, setEscrowOpen] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setLoadingProfiles(true);
-      try {
-        const list = await apiGetProfiles();
-        if (mounted) setProfiles(list || []);
-      } catch {
-        if (mounted) setProfiles([]);
-        addBanner({ type: "error", msg: "Failed to load profiles." });
-      } finally {
-        if (mounted) setLoadingProfiles(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [addBanner]);
-
-  const applyFilter = useCallback((f) => {
-    // from WagerFilter: {min,max,q}
-    setFilters((prev) => ({ ...prev, ...f }));
-  }, []);
-
-  const filteredProfiles = useMemo(() => {
-    const min = filters.min;
-    const max = filters.max;
-    const q = String(filters.q || "").toLowerCase().trim();
-    return profiles.filter((p) => {
-      const amt = Number(p.preferredWagerEth || 0);
-      const minOk = min == null || amt >= min;
-      const maxOk = max == null || amt <= max;
-      const qOk =
-        !q ||
-        [p.name, p.crTag, p.availability]
-          .filter(Boolean)
-          .some((v) => String(v).toLowerCase().includes(q));
-      return minOk && maxOk && qOk;
-    });
-  }, [profiles, filters]);
-
-  const onChallenge = useCallback((profile) => {
-    setOpponent(profile);
-    setEscrowOpen(true);
-  }, []);
-  const closeEscrow = useCallback(() => {
-    setEscrowOpen(false);
-    setOpponent(null);
-  }, []);
-
   const content = useMemo(() => {
     if (route === "/history") {
       return <GameHistoryPage />;
     }
     if (route === "/settings") {
       return (
-        <div className="card">
-          <h3>Settings</h3>
-          <p>Manage connections and account links.</p>
-          <button className="btn-primary" onClick={() => setLinkOpen(true)}>
-            Link Clash Royale
-          </button>
+        <div className="container">
+          <div className="card" style={{ marginTop: 12 }}>
+            <h3>Settings</h3>
+            <p>Manage connections and account links.</p>
+            <button className="btn-primary" onClick={() => setLinkOpen(true)}>
+              Link Clash Royale
+            </button>
+          </div>
         </div>
       );
     }
-    return (
-      <div className="layout">
-        <aside className="sidebar">
-          <div className="card" style={{ marginBottom: 8 }}>
-            <strong>Filters</strong>
-          </div>
-          <div className="card" style={{ marginBottom: 12 }}>
-            <WagerFilter
-              onChange={applyFilter}
-              // backward-compatible alias if tests use applyFilter
-              applyFilter={applyFilter}
-            />
-          </div>
-          <div className="card">
-            <DepositsDashboard />
-          </div>
-        </aside>
-        <main className="main">
-          <ProfileList
-            profiles={filteredProfiles}
-            loading={loadingProfiles}
-            onChallenge={onChallenge}
-          />
-        </main>
-      </div>
-    );
-  }, [route, filteredProfiles, loadingProfiles, applyFilter, onChallenge]);
+    // default home
+    return <AllInOnePage />;
+  }, [route]);
 
   return (
     <div className="app">
@@ -198,44 +118,6 @@ export default function App() {
       </div>
 
       <LinkAccountModal open={linkOpen} onClose={() => setLinkOpen(false)} />
-
-      {/* Lightweight Escrow Modal: reuse EscrowModal component contract in project */}
-      {escrowOpen && (
-        // Using the existing EscrowModal component as separate page uses a different prop signature;
-        // but for SPA default, we can show a simple inline modal hooking into opponent/preferred wager
-        <div className="modal-backdrop">
-          <div className="modal small">
-            <header className="modal-header">
-              <h3>Start Escrow</h3>
-              <button aria-label="Close" onClick={closeEscrow}>×</button>
-            </header>
-            <div className="modal-body">
-              <p>Opponent: {opponent?.name}</p>
-              <p>Default wager: {opponent?.preferredWagerEth ?? 0.01} ETH</p>
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  // Kick off mock wager initiation
-                  api().initWager({
-                    opponentId: opponent?.id,
-                    amountEth: opponent?.preferredWagerEth ?? 0.01,
-                  }).then((w) => {
-                    addBanner({ type: "success", msg: `Wager initiated vs ${opponent?.name} for ${w.amountEth} ETH.` });
-                    closeEscrow();
-                  }).catch((e) => {
-                    addBanner({ type: "error", msg: e?.message || "Failed to initiate wager." });
-                  });
-                }}
-              >
-                Initiate wager
-              </button>
-            </div>
-            <footer className="modal-footer">
-              <button className="btn" onClick={closeEscrow}>Close</button>
-            </footer>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
