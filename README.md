@@ -13,110 +13,95 @@ Links
 - UI & style guide: assets/style_guide.md
 
 Backend Roadmap (concise and actionable)
-This section defines the minimal backend needed to support the current frontend. For exact request/response shapes, defer to frontend/INTEGRATION_NOTES.md. Keep endpoint parity with that file at all times.
-
-Alignment note with frontend/INTEGRATION_NOTES.md
-- The frontend uses “/me/cr” for the current user’s Clash Royale link status; the backend should expose either:
-  - GET /me/cr (preferred for parity with the frontend), or
-  - Provide a thin alias over the “Profiles & CR Link” endpoints below.
-- Where this roadmap lists richer endpoints (e.g., /link/cr/*), you may expose both for clarity: keep GET /me/cr for the frontend, and implement /link/cr/* for robust backend flows.
+- Scope: Minimal backend to support the current frontend. For exact request/response shapes, always defer to frontend/INTEGRATION_NOTES.md and keep strict endpoint parity with that file.
+- Compatibility: The frontend relies on GET /me/cr for CR-link status. Implement GET /me/cr and optionally expose /link/cr/* for a robust server-side linking flow. If both exist, keep /me/cr as the thin compatibility layer.
 
 1) Authentication (SIWE-lite)
-- Flow:
-  1. GET /auth/nonce → returns a nonce with short expiry (e.g., 5 minutes).
-  2. Client signs “Login to CR-ETH Matchmaker. Nonce: <nonce>”.
-  3. POST /auth/verify { address, signature, nonce|message } → verify signature; issue session (JWT in HttpOnly Secure cookie or return Bearer token).
-  4. GET /auth/me → returns session info (address).
-  5. POST /auth/logout → revoke/clear session.
-- Tokens:
-  - JWT claims: sub=wallet address, iat, exp (≤24h), jti. Prefer short-lived with rotation.
-- Security:
-  - Nonce is single-use, stored hashed, and expires.
-  - Rate-limit auth endpoints; restrict CORS to known frontend origin(s).
-  - Cookies: SameSite=Lax (same-site) or None (cross-site), always Secure over HTTPS.
-  - Optional CSRF token for state-changing endpoints when using cookies.
+- Flow
+  - GET /auth/nonce → returns a nonce (TTL ~5 minutes; single-use, stored hashed).
+  - Client signs: "Login to CR-ETH Matchmaker. Nonce: <nonce>".
+  - POST /auth/verify { address, signature, nonce|message } → verify; establish session (JWT in HttpOnly Secure cookie or Bearer).
+  - GET /auth/me → session info (wallet address).
+  - POST /auth/logout → revoke/clear session.
+- Security
+  - Nonce expiry + single-use; rate-limit auth; restrict CORS to known origins.
+  - Cookies: HttpOnly + Secure; SameSite=Lax (or None for cross-site).
+  - Consider CSRF token for state-changing routes if using cookies.
+  - JWT: short-lived (≤24h) with rotation; claims: sub (wallet), iat, exp, jti.
 
 2) Profiles (listing and filtering)
-- Endpoints:
+- Endpoints
   - GET /profiles?minWagerWei=&maxWagerWei=&tier=&q=&page=&pageSize= → { items, page, pageSize, total }.
-  - GET /profiles/:walletAddress → single profile.
+  - GET /profiles/:walletAddress
   - PATCH /profiles/me (auth) → update displayName, tier, min/max wager, region.
-- DB:
+- Data & validation
   - profiles(id, wallet_address unique, display_name, tier, min_wager_wei, max_wager_wei, region, created_at, updated_at, cr_link_verified boolean).
-  - Index ranges and tier; cap pageSize; validate min/max bounds.
-- Validation:
-  - Enforce sane wager ranges and tier values; normalize/trim display names.
+  - Index tier and wager ranges; cap pageSize; validate bounds and enums.
 
 3) Clash Royale account linking (server-side via Supercell API)
-- Endpoints (robust flow):
-  - POST /link/cr/init (auth) → issue a short-lived verify code/token with instructions (see frontend/INTEGRATION_SUPERCELL_CR.md).
-  - POST /link/cr/verify (auth, { playerTag }) → backend calls Supercell API to validate ownership; on success set cr_link_verified=true.
-  - DELETE /link/cr (auth) → unlink.
-- Frontend compatibility:
-  - GET /me/cr → { linked, crTag, name } for quick status display.
-  - POST /me/cr/link → { crTag } to trigger a basic link; map internally to /link/cr/*.
-- Security:
-  - Keep Supercell API token in backend env; never expose to browser.
-  - Rate-limit link/verify; audit-log attempts.
-- Data:
+- Endpoints
+  - GET /me/cr → { linked, crTag, name }
+  - POST /me/cr/link → { crTag } (map internally to /link/cr/* for robust verification)
+  - POST /link/cr/init (auth) → issue short-lived verification token/code
+  - POST /link/cr/verify (auth, { playerTag }) → call Supercell API; set cr_link_verified=true
+  - DELETE /link/cr (auth) → unlink
+- Security & data
+  - CR API token in backend env; rate-limit; audit-log attempts.
   - cr_accounts(id, wallet_address fk, player_tag, verified_at, last_check_at, metadata_json).
 
-4) Wagers lifecycle with escrow (on-chain deposits + off-chain coordination)
-- Suggested state machine:
+4) Wagers lifecycle with escrow (on-chain + off-chain coordination)
+- State machine
   - created → awaiting_deposits → ready → in_progress → result_reported → settled | disputed | canceled
-- On-chain escrow:
-  - User deposits via contract; backend tracks events and updates wager state.
-- Endpoints:
-  - POST /wagers (auth) → { opponentAddress|opponentId, amountWei, tier, terms } → creates wager (state=created).
-  - GET /wagers?status=&page= → list wagers for current user.
-  - GET /wagers/:id → details incl. deposit statuses.
-  - POST /wagers/:id/ready (auth) → mark user ready once deposit event observed.
-  - POST /wagers/:id/result (auth) → { winnerAddress, evidenceUrl? } (soft report; on-chain is authoritative).
-  - POST /wagers/:id/cancel (auth) → cancel before both deposits where rules allow.
-  - Compatibility shims (from frontend notes):
-    - POST /wagers/deposit → { wagerId, txHash } to acknowledge receipt if needed by client; internally validate tx and map into deposits table.
-    - GET /wagers/:id/status → { status, wager? } derived from wager state.
-    - GET /wagers/live and GET /wagers/history for convenience feeds.
-- Data:
+- Endpoints
+  - POST /wagers (auth) → { opponentAddress|opponentId, amountWei, tier, terms }
+  - GET /wagers?status=&page= (current user’s wagers)
+  - GET /wagers/:id
+  - POST /wagers/:id/ready (auth) (after deposit event observed)
+  - POST /wagers/:id/result (auth) → { winnerAddress, evidenceUrl? }
+  - POST /wagers/:id/cancel (auth)
+  - Compatibility shims to match frontend:
+    - POST /wagers/deposit → { wagerId, txHash }
+    - GET /wagers/:id/status → { status, wager? }
+    - GET /wagers/live and GET /wagers/history
+- Data
   - wagers(id, creator_wallet, opponent_wallet, amount_wei, tier, state, created_at, updated_at)
   - wager_deposits(wager_id fk, wallet_address, tx_hash unique, amount_wei, confirmed_at)
   - wager_results(wager_id fk, reporter_wallet, winner_wallet, evidence_url, reported_at)
 
 5) Webhooks / Indexer
-- Options:
-  - Webhook receiver: POST /webhooks/escrow-events (validate HMAC signature).
-  - Lightweight indexer: subscribe or poll for contract events (Deposited, Ready, Settled).
-- Reliability & safety:
-  - Track last processed block; idempotent upserts using (txHash, logIndex).
-  - Retries with backoff; audit-log every state transition.
-  - Allowlist webhook sources; require confirmations (e.g., 2 blocks).
+- Options
+  - Webhook: POST /webhooks/escrow-events (HMAC verification).
+  - Indexer: subscribe/poll for Deposited/Ready/Settled events.
+- Reliability
+  - Track last processed block; idempotent upserts via (txHash, logIndex).
+  - Retries/backoff; audit each state transition; require N confirmations (e.g., 2).
+  - Allowlist webhook sources.
 
 6) Security checklist
-- Nonce expiry and single-use; store hashed nonces.
+- Nonce expiry + single-use; hashed storage.
 - JWT/session with rotation; HttpOnly + Secure cookies; CSRF strategy as needed.
-- Strict CORS: allow only known frontend origins; enable credentials if using cookies.
-- Input validation: zod/class-validator; centralized error handling.
-- Rate limits on auth, profile search, linking, and wagers.
-- Audit logging: auth, linking, wagers state changes (with request IDs, wallet addresses).
-- Secrets via env; avoid PII; least privilege for API keys.
-- Chain safety: chainId validation, min stake thresholds, reorg handling, replay protection.
+- Strict CORS: allow only known frontend origins; credentials if using cookies.
+- Input validation (zod/class-validator); centralized error handling.
+- Rate limits: auth, search, link, wagers.
+- Audit logging: auth, linking, wagers transitions (req IDs, wallets).
+- Secrets via env; least privilege; avoid PII.
+- Chain safety: chainId validation, min stake, reorg handling, replay protection.
 
 7) Dev setup (docker-compose)
-- Services: api (Node), db (PostgreSQL), optional worker/indexer, optional redis.
+- Services: api (Node/TS), db (PostgreSQL), optional worker/indexer, optional redis.
 - API default port: 8080.
-- Migrations via Prisma (or equivalent); seed script for sample profiles and wagers.
-- Makefile/npm scripts for up/down/logs/migrate/seed.
-- Provide .env.example with all required vars.
+- Migrations via Prisma (or similar); seed script for demo data.
+- Scripts: up/down/logs/migrate/seed; include .env.example.
 
 8) Suggested backend stack
-- Node + TypeScript (Fastify recommended). Alternatives: Express/Nest.
-- ORM: Prisma + PostgreSQL (SQLite acceptable for local prototyping).
-- Auth: ethers/viem for signature verification; cookie-session or JWT with cookies.
+- Node + TypeScript (Fastify recommended; Express/Nest acceptable).
+- ORM: Prisma + PostgreSQL (SQLite OK for local prototype).
+- Auth: viem/ethers for signature checks; cookie-session or JWT.
 - Validation: zod (+ zod-openapi optional).
 - Web3: viem or ethers v6.
 - Jobs/indexer: bullmq or simple poll/subscribe loop.
 - Logging: pino.
-- Testing: vitest/jest + supertest; mock chain interactions.
+- Testing: vitest/jest + supertest; mock chain.
 
 9) Endpoint list (kept in lockstep with frontend/INTEGRATION_NOTES.md)
 - Auth:
@@ -169,7 +154,7 @@ Alignment note with frontend/INTEGRATION_NOTES.md
   - CHAIN_ID=11155111 (example: Sepolia)
   - RPC_URL=https://...
   - ESCROW_FACTORY_ADDRESS=0x...
-  - REACT_APP_ESCROW_ADDRESS=0x... (if you mirror for convenience in backend envs)
+  - REACT_APP_ESCROW_ADDRESS=0x... (frontend var shown for context)
   - CONFIRMATIONS=2
 - Indexer/Jobs
   - INDEXER_POLL_MS=4000
@@ -179,16 +164,16 @@ Alignment note with frontend/INTEGRATION_NOTES.md
   - LOG_LEVEL=info
 
 11) Next steps (execution order)
-- Schema + Migrations: Define profiles, wagers, deposits, results, auth nonces, CR link records.
-- Auth: Implement SIWE-lite nonce/verify + cookie/JWT session; rate limits and CORS.
-- Profiles: Listing and PATCH /profiles/me.
-- CR Linking: init/verify via Supercell API; audit logs; maintain /me/cr parity.
-- Wagers: create/list/detail/ready/result/cancel + validations; compatibility endpoints (/wagers/deposit, status, live, history).
+- Schema/Migrations: profiles, wagers, deposits, results, auth nonces, CR link records.
+- Auth: SIWE-lite nonce/verify + session; rate limits; CORS.
+- Profiles: GET /profiles and PATCH /profiles/me.
+- CR Linking: init/verify via Supercell; audit; maintain /me/cr parity.
+- Wagers: create/list/detail/ready/result/cancel; add compatibility endpoints (/wagers/deposit, status, live, history).
 - Indexer/Webhooks: ingest escrow events; idempotent updates; confirmations.
-- Security Hardening: validation, CSRF strategy, logging, secrets, CORS.
-- Docker Compose: api/db/indexer; .env.example; seed script.
-- OpenAPI: minimal spec for endpoints to ease integration.
-- Tests: integration tests for auth, profiles, linking, wagers; webhook/indexer tests.
+- Security Hardening: validation, CSRF, logging, secrets, CORS.
+- Docker Compose: api/db/indexer; .env.example; seed.
+- OpenAPI: minimal spec for these endpoints.
+- Tests: auth, profiles, linking, wagers, webhook/indexer.
 
 Dev quickstart (Backend once implemented)
 - cp .env.example .env and fill values
@@ -196,7 +181,7 @@ Dev quickstart (Backend once implemented)
 - Run migrations and seed:
   - docker compose exec api npm run prisma:migrate
   - docker compose exec api npm run seed
-- Verify /healthz and /readyz; integrate with frontend per frontend/INTEGRATION_NOTES.md.
+- Verify /healthz and /readyz; test with the frontend per frontend/INTEGRATION_NOTES.md.
 
 License
 MIT
