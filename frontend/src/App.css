@@ -38,12 +38,17 @@
   background-repeat: no-repeat;
 }
 
-/* Ensure content cards remain readable on image background */
-.game-history-bg .card,
-.game-history-bg [style*="background: #ffffff"],
-.game-history-bg [style*="background:#ffffff"] {
-  background: #ffffff !important;
+/* Transparent panels for Game History page; avoid forcing white backgrounds */
+.game-history-bg .gh-panel-transparent {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(229,231,235,0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+  color: var(--text-primary);
 }
+
+/* Remove global override that forced white backgrounds inside game-history-bg */
 
 .App-link {
   color: var(--text-secondary);

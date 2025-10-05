@@ -80,8 +80,8 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
       </section>
 
       <header style={styles.pageHeader}>
-        <div>
-          <h2 style={styles.title} aria-label="Section: Game History Details">Details</h2>
+        <div aria-label="Section: Game History Details">
+          {/* Header title 'Details' removed per design. Keep concise helper text. */}
           <p style={styles.subtitle}>
             Live stream activity and actionable betting panel below.
           </p>
@@ -98,8 +98,8 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
       </header>
 
       {/* Live Game placeholder above the live feed */}
-      <section style={styles.section}>
-        <div style={{ ...styles.card, ...styles.liveGamePlaceholder }}>
+      <section style={styles.section} className="gh-panel-transparent">
+        <div style={{ ...styles.card, ...styles.liveGamePlaceholder }} className="gh-panel-transparent">
           <div style={styles.cardHeader}>
             <h2 style={styles.cardTitle}>Live Game</h2>
             <span style={styles.badge}>Placeholder</span>
@@ -130,7 +130,7 @@ export default function GameHistoryPage({ prefetching, initialLive, initialHisto
       </section>
 
       {/* Top row: Live Stream (left) + Place Bet (right) */}
-      <section style={styles.section}>
+      <section style={styles.section} className="gh-panel-transparent">
         <div style={styles.topRow}>
           <LiveFeedPanel />
           <PlaceBetPanel />
@@ -174,7 +174,7 @@ function LiveFeedPanel() {
   }, []);
 
   return (
-    <section aria-label="Live feed of ongoing games and wagers" style={{ ...styles.card, ...styles.liveCard }}>
+    <section aria-label="Live feed of ongoing games and wagers" style={{ ...styles.card, ...styles.liveCard }} className="gh-panel-transparent">
       <div style={styles.cardHeader}>
         <h2 style={styles.cardTitle}>Live Stream</h2>
         <span style={styles.badge}>Realtime</span>
@@ -263,7 +263,7 @@ function PlaceBetPanel() {
   };
 
   return (
-    <section aria-label="Place a wager" style={{ ...styles.card, ...styles.placeCard }}>
+    <section aria-label="Place a wager" style={{ ...styles.card, ...styles.placeCard }} className="gh-panel-transparent">
       <div style={styles.cardHeader}>
         <h2 style={styles.cardTitle}>Place Bet</h2>
       </div>
@@ -472,10 +472,12 @@ const styles = {
   },
   card: {
     padding: '14px',
-    background: '#ffffff',
-    border: '1px solid #E5E7EB',
+    background: 'rgba(255,255,255,0.05)', // subtle transparent to reveal background
+    border: '1px solid rgba(229,231,235,0.4)',
     borderRadius: 12,
     boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
+    backdropFilter: 'blur(4px)', // maintain legibility
+    WebkitBackdropFilter: 'blur(4px)',
   },
   liveCard: {
     minHeight: 260,
@@ -495,8 +497,8 @@ const styles = {
   liveGameScreen: {
     minHeight: 220,
     borderRadius: 12,
-    border: '1px solid #E5E7EB',
-    background: 'linear-gradient(135deg, #DBEAFE 0%, #E5E7EB 100%)',
+    border: '1px solid rgba(229,231,235,0.5)',
+    background: 'linear-gradient(135deg, rgba(219,234,254,0.6) 0%, rgba(229,231,235,0.6) 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -520,10 +522,12 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-    background: '#F9FAFB',
-    border: '1px solid #E5E7EB',
+    background: 'rgba(249,250,251,0.5)',
+    border: '1px solid rgba(229,231,235,0.5)',
     borderRadius: 12,
     padding: 12,
+    backdropFilter: 'blur(3px)',
+    WebkitBackdropFilter: 'blur(3px)',
   },
   liveGameRow: {
     display: 'flex',
@@ -577,10 +581,12 @@ const styles = {
     gridTemplateColumns: '1.8fr 1fr 1fr',
     alignItems: 'center',
     gap: 10,
-    border: '1px solid #E5E7EB',
+    border: '1px solid rgba(229,231,235,0.6)',
     borderRadius: 10,
     padding: '10px 12px',
-    background: '#FFFFFF',
+    background: 'rgba(255,255,255,0.6)',
+    backdropFilter: 'blur(2px)',
+    WebkitBackdropFilter: 'blur(2px)',
   },
   feedUserBlock: {
     display: 'flex',
@@ -624,22 +630,26 @@ const styles = {
   input: {
     height: 38,
     borderRadius: 10,
-    border: '1px solid #E5E7EB',
+    border: '1px solid rgba(229,231,235,0.6)',
     padding: '0 10px',
-    background: '#FFFFFF',
+    background: 'rgba(255,255,255,0.7)',
     color: '#111827',
     outline: 'none',
     boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)',
+    backdropFilter: 'blur(2px)',
+    WebkitBackdropFilter: 'blur(2px)',
   },
   pillBtn: {
-    border: '1px solid #E5E7EB',
-    background: '#F9FAFB',
+    border: '1px solid rgba(229,231,235,0.6)',
+    background: 'rgba(249,250,251,0.6)',
     color: '#111827',
     borderRadius: 999,
     padding: '6px 10px',
     cursor: 'pointer',
     fontWeight: 800,
     fontSize: 12,
+    backdropFilter: 'blur(2px)',
+    WebkitBackdropFilter: 'blur(2px)',
   },
   pillBtnActive: {
     background: '#2563EB',
