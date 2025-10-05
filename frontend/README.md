@@ -1,41 +1,82 @@
 # Clash Royale Ethereum Matchmaker - Frontend
 
-Interactive React frontend with mock API and dry-run escrow for preview on port 3000.
+Interactive React frontend with mock API and dry‑run escrow for preview on port 3000.
 
-## Quick start
+## Quick start (Preview mode)
 
-- Install deps: `npm install`
-- Start dev server: `npm start`
-- Open: http://localhost:3000
+Preview mode requires no backend or smart contract.
 
-By default:
-- Mock API is used (no backend required).
-- Escrow deposits are simulated (no funds needed).
+1) Install dependencies:
+   - npm install
+2) Start the dev server:
+   - npm start
+3) Open:
+   - http://localhost:3000
 
-## Environment
+Default behavior (no .env needed):
+- Mock API is used because REACT_APP_API_URL is not set.
+- Escrow deposits are simulated (dry‑run) because REACT_APP_DRY_RUN_ESCROW=true (by default in example) or REACT_APP_ESCROW_ADDRESS is not set.
 
-Create `.env` in the `frontend` folder to enable real integrations:
+Indicators:
+- The UI shows banners when mock API and/or dry‑run escrow are active.
+- No real funds are used in preview mode.
 
-```
-REACT_APP_API_URL=https://your-backend.example.com
-REACT_APP_DRY_RUN_ESCROW=false
-REACT_APP_ESCROW_ADDRESS=0xYourEscrowAddress
-REACT_APP_CHAIN_ID=11155111
-```
+## Switching to a real backend and contract
 
-Omit `REACT_APP_API_URL` to use mock API. Set `REACT_APP_DRY_RUN_ESCROW=true` or omit `REACT_APP_ESCROW_ADDRESS` to simulate deposits.
+1) Copy and edit environment variables:
+   - cp .env.example .env
+   - Set REACT_APP_API_URL to your backend base URL.
+   - Set REACT_APP_ESCROW_ADDRESS to your deployed escrow contract address.
+   - Set REACT_APP_DRY_RUN_ESCROW=false to enable real deposits.
+   - Set REACT_APP_CHAIN_ID to your target network (default in code is 11155111 for Sepolia).
 
-See INTEGRATION_NOTES.md for backend routes and escrow notes.
+2) Restart the dev server after editing .env.
+
+3) Backend requirements:
+   - Must implement endpoints listed in INTEGRATION_NOTES.md.
+   - Enable CORS for your frontend origin and allow credentials (cookies).
+   - Serve over HTTPS in staging/production; set HttpOnly, Secure cookies.
+
+4) Contract requirements:
+   - Provide the escrow contract ABI and wire it into src/services/blockchain.js.
+   - Ensure MetaMask is connected to the chain matching REACT_APP_CHAIN_ID.
+
+## MetaMask and network checks
+
+- On connect, the app checks the wallet’s chain against REACT_APP_CHAIN_ID.
+- If networks don’t match, MetaMask may prompt to switch; otherwise, switch networks in MetaMask manually.
+- For preview without a wallet, the app falls back to a mock account when no API URL is set.
+
+## Environment variables
+
+All variables supported by the frontend:
+
+- REACT_APP_API_URL
+  - Backend base URL. If omitted, the app uses the Mock API client.
+- REACT_APP_DRY_RUN_ESCROW
+  - "true" to simulate escrow deposits and confirmations. Also enabled automatically if REACT_APP_ESCROW_ADDRESS is not set.
+- REACT_APP_ESCROW_ADDRESS
+  - Escrow contract address for real deposits. Leave empty for preview/dry‑run.
+- REACT_APP_CHAIN_ID
+  - Target chain ID (number). Default used in code is 11155111 (Sepolia).
+
+See .env.example for a template.
+
+## Additional documentation
+
+- INTEGRATION_NOTES.md: Backend endpoints, SIWE‑lite session flow, escrow assumptions, security/CORS, and deployment guidance.
+- src/services/api.js and src/services/blockchain.js: Implementation details for API and escrow client.
+- src/hooks/useEthereumWallet.js: Wallet connection and SIWE‑lite logic.
 
 ## Features
 
-- Wallet connect/disconnect with mock SIWE.
+- Wallet connect/disconnect with mock SIWE‑like flow.
 - Profiles list with wager filtering.
-- Escrow modal with dry-run simulation.
+- Escrow modal with dry‑run simulation.
 - Deposits dashboard and game history.
 - Ocean Professional theme and accessible UI primitives.
 
 ## Development
 
 - Components and services are documented with PUBLIC_INTERFACE markers.
-- Tests should pass in CI with mock mode.
+- Tests pass in CI using mock mode; no external services are required.
