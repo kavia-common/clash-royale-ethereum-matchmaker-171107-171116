@@ -1,5 +1,4 @@
 //
-//
 // services/blockchain.js
 //
 // PUBLIC_INTERFACE
@@ -10,7 +9,6 @@
 /**
  * Determine if we run escrow in dry-run.
  * This is true if REACT_APP_DRY_RUN_ESCROW=true or no escrow address is configured.
- * Avoid crashing previews when envs are missing.
  */
 const DRY_RUN =
   String(process.env.REACT_APP_DRY_RUN_ESCROW || "").toLowerCase() === "true" ||
@@ -46,16 +44,12 @@ export function getEscrowClient() {
     const emitter = new SimpleEmitter();
     // PUBLIC_INTERFACE
     async function deposit({ from, wagerId, amountEth }) {
-      // simulate progress
       const txHash = "0xMOCK" + Math.random().toString(16).slice(2, 10);
       emitter.emit("tx:submitted", { txHash, from, wagerId, amountEth });
-
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 200));
       emitter.emit("tx:pending", { txHash });
-
       await new Promise((r) => setTimeout(r, 600));
       emitter.emit("tx:confirmed", { txHash, blockNumber: 123456 });
-
       return {
         txHash,
         wait: async () => ({
@@ -65,7 +59,6 @@ export function getEscrowClient() {
         }),
       };
     }
-
     return {
       dryRun: true,
       address: null,
@@ -74,20 +67,14 @@ export function getEscrowClient() {
     };
   }
 
-  // Real scaffold (avoid importing heavy libs if not installed; tests shouldn't require)
-  // Placeholder ABI — do not perform real calls without ABI.
+  // Real scaffold: not implemented here; avoid heavy deps.
   const ABI = [];
-  // In a real integration we'd create a provider and signer using window.ethereum and ethers.js.
-  // For now, provide a shape-compatible stub that throws if used without proper ABI.
   return {
     dryRun: false,
     address: ESCROW_ADDRESS,
     emitter: new SimpleEmitter(),
-    // PUBLIC_INTERFACE
     async deposit() {
-      if (!ABI.length) {
-        throw new Error("Escrow ABI not configured. Cannot perform real deposit.");
-      }
+      if (!ABI.length) throw new Error("Escrow ABI not configured. Cannot perform real deposit.");
       throw new Error("Not implemented: real chain interaction.");
     },
   };

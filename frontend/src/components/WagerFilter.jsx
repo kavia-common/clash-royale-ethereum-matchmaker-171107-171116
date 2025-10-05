@@ -2,29 +2,53 @@ import React, { useEffect, useState } from "react";
 
 /**
  * PUBLIC_INTERFACE
- * WagerFilter allows inputting min/max wager amounts and notifies parent on change.
+ * WagerFilter allows inputting min/max wager amounts and q (text) and notifies parent on change.
+ * Props:
+ * - onChange({min,max,q})
+ * - applyFilter({min,max,q}) backward-compatible alias
  */
-export default function WagerFilter({ onChange }) {
+export default function WagerFilter({ onChange, applyFilter }) {
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     const payload = {
       min: min === "" ? null : Number(min),
       max: max === "" ? null : Number(max),
+      q,
     };
-    onChange && onChange(payload);
-  }, [min, max, onChange]);
+    if (onChange) onChange(payload);
+    if (applyFilter) applyFilter(payload);
+  }, [min, max, q, onChange, applyFilter]);
 
   return (
-    <div className="card">
+    <div>
       <div className="row space-between">
-        <strong>Wager Filter</strong>
-        <button className="btn" onClick={() => { setMin(""); setMax(""); }}>
+        <strong>Filter profiles</strong>
+        <button
+          className="btn"
+          onClick={() => {
+            setMin("");
+            setMax("");
+            setQ("");
+          }}
+          aria-label="Reset filters"
+        >
           Reset
         </button>
       </div>
       <div className="row mt-2" style={{ gap: 12 }}>
+        <label>
+          Search
+          <input
+            data-testid="text-search-input"
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search name, tag, availability"
+          />
+        </label>
         <label>
           Min (ETH)
           <input

@@ -7,8 +7,10 @@ import Spinner from "./ui/Spinner";
  * PUBLIC_INTERFACE
  * DepositsDashboard lists live wagers and allows depositing into escrow.
  * Uses the API client in mock mode when REACT_APP_API_URL is not set.
+ * Props:
+ * - onBanner?: function({type,msg})
  */
-export default function DepositsDashboard() {
+export default function DepositsDashboard({ onBanner }) {
   const [wagers, setWagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -19,6 +21,8 @@ export default function DepositsDashboard() {
       try {
         const data = await api().getLive();
         if (mounted) setWagers(data);
+      } catch (e) {
+        onBanner && onBanner({ type: "error", msg: e?.message || "Failed to load wagers." });
       } finally {
         if (mounted) setLoading(false);
       }
@@ -26,7 +30,7 @@ export default function DepositsDashboard() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [onBanner]);
 
   if (loading) {
     return (

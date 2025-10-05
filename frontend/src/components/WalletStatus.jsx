@@ -1,17 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { useEthereumWallet } from "../hooks/useEthereumWallet";
-import { Banner } from "./ui";
-import LinkAccountModal from "./LinkAccountModal";
-import { useAppDispatch, useAppSelector } from "../state/store";
-import { setCrAccountData, setSliceError, setSliceLoading } from "../state/actions";
-import { selectCRLinked, selectCRProfile } from "../state/selectors";
-import { apiGetCRMe } from "../services/api";
+import Banner from "./ui/Banner";
 
 /**
  * PUBLIC_INTERFACE
- * WalletStatus shows wallet account and connect/disconnect controls, plus CR link entry.
+ * WalletStatus shows wallet address, connect/disconnect, network status, and link CTA.
+ * Props:
+ * - onLinkClick: function to open link modal
  */
-export default function WalletStatus() {
+export default function WalletStatus({ onLinkClick }) {
   const {
     account,
     isCorrectNetwork,
@@ -21,39 +18,6 @@ export default function WalletStatus() {
     disconnect,
     HAS_API,
   } = useEthereumWallet();
-
-  const [linkOpen, setLinkOpen] = useState(false);
-  const dispatch = useAppDispatch();
-  const crLinked = useAppSelector(selectCRLinked);
-  const crProfile = useAppSelector(selectCRProfile);
-
-  // Load CR link status when account changes
-  useEffect(() => {
-    let canceled = false;
-    const run = async () => {
-      if (!account) {
-        dispatch(setCrAccountData({ linked: false }));
-        return;
-      }
-      dispatch(setSliceLoading("crAccount", true));
-      try {
-        const me = await apiGetCRMe();
-        if (!canceled) dispatch(setCrAccountData(me));
-      } catch (e) {
-        if (!canceled) dispatch(setSliceError("crAccount", e?.message || "Failed to load link status"));
-      } finally {
-        if (!canceled) dispatch(setSliceLoading("crAccount", false));
-      }
-    };
-    run();
-    return () => { canceled = true; };
-  }, [account, dispatch]);
-
-  useEffect(() => {
-    const onSuccess = () => setLinkOpen(false);
-    window.addEventListener("cr-link-success", onSuccess);
-    return () => window.removeEventListener("cr-link-success", onSuccess);
-  }, []);
 
   const addressDisplay = useMemo(() => {
     if (!account) return "";
@@ -86,7 +50,7 @@ export default function WalletStatus() {
             <>
               <div data-testid="wallet-address">{addressDisplay}</div>
               <div>
-                Network: {isCorrectNetwork ? "Supported" : "Wrong network (use target chain)"}
+                Network: {isCorrectNetwork ? "Supported" : "Wrong network (switch to configured chain)"}
               </div>
             </>
           ) : (
@@ -94,7 +58,7 @@ export default function WalletStatus() {
           )}
         </div>
         {error && <div className="error mt-2" role="alert">{String(error.message || error)}</div>}
-        <div className="row mt-2">
+        <div className="row mt-2" style={{ gap: 8 }}>
           {account ? (
             <button
               className="btn"
@@ -113,41 +77,11 @@ export default function WalletStatus() {
               {connecting ? "Connecting…" : "Connect"}
             </button>
           )}
+          <button className="btn-secondary" onClick={onLinkClick}>
+            Link Clash Royale
+          </button>
         </div>
       </div>
-
-      {account && (
-        <div className="card" style={{ marginTop: 8 }}>
-          <div className="row space-between">
-            <strong>Clash Royale</strong>
-            {crLinked ? (
-              <span className="badge">Linked</span>
-            ) : (
-              <span className="badge">Not linked</span>
-            )}
-          </div>
-          <div className="mt-2">
-            {crLinked ? (
-              <div>Linked as {crProfile?.tag || "Unknown"}</div>
-            ) : (
-              <div>Link your Clash Royale account for better matchmaking.</div>
-            )}
-          </div>
-          <div className="row mt-2">
-            {!crLinked ? (
-              <button className="btn-primary" onClick={() => setLinkOpen(true)}>
-                Link Clash Royale
-              </button>
-            ) : (
-              <button className="btn" onClick={() => setLinkOpen(true)}>
-                Manage
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <LinkAccountModal open={linkOpen} onClose={() => setLinkOpen(false)} />
     </div>
   );
 }

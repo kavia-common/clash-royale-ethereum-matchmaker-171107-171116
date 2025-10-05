@@ -4,8 +4,12 @@ import Skeleton from "./ui/Skeleton";
 /**
  * PUBLIC_INTERFACE
  * ProfileList shows list of profiles and allows initiating a challenge.
+ * Props:
+ * - profiles: array of profile items
+ * - loading: boolean
+ * - onChallenge(profile): function
  */
-export default function ProfileList({ profiles, loading, onChallenge }) {
+export default function ProfileList({ profiles = [], loading = false, onChallenge }) {
   if (loading) {
     return (
       <div className="grid">
@@ -14,26 +18,32 @@ export default function ProfileList({ profiles, loading, onChallenge }) {
         <Skeleton height={80} />
       </div>
     );
-  }
+    }
   if (!profiles || profiles.length === 0) {
     return <div className="muted">No profiles found.</div>;
   }
   return (
-    <div className="grid">
+    <div className="grid" role="list" aria-label="Matchmaking profiles">
       {profiles.map((p) => (
-        <div key={p.id} className="card">
+        <div key={p.id || p.crTag || p.name} className="card" role="listitem">
           <div className="row space-between">
             <div>
               <div className="title">{p.name}</div>
               <div className="muted">
-                {p.crTag} • {p.trophy} trophies • Prefers {p.preferredWagerEth} ETH
+                {p.crTag} • {p.trophy || p.trophies || "—"} trophies • Prefers {p.preferredWagerEth} ETH
               </div>
-              <div className={p.online ? "badge success" : "badge"}>
-                {p.online ? "Online" : "Offline"}
-              </div>
+              {p.online != null && (
+                <div className={p.online ? "badge success" : "badge"}>
+                  {p.online ? "Online" : "Offline"}
+                </div>
+              )}
             </div>
             <div>
-              <button className="btn-secondary" onClick={() => onChallenge?.(p)}>
+              <button
+                className="btn-secondary"
+                onClick={() => onChallenge?.(p)}
+                aria-label={`Challenge ${p.name}`}
+              >
                 Challenge
               </button>
             </div>

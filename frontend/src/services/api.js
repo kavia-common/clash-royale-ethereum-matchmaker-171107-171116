@@ -1,13 +1,10 @@
 //
-//
 // services/api.js
 //
 // PUBLIC_INTERFACE
 // Provides API client with mock-friendly behavior. If REACT_APP_API_URL is unset,
 // returns mock handlers that simulate backend interactions (profiles, wagers,
 // auth.nonce/verify, history, deposits, Clash Royale link lifecycle).
-//
-// Uses deterministic results for tests and preview with setTimeout to emulate latency.
 //
 
 /** Utility: wait for ms */
@@ -125,10 +122,7 @@ function api(fetchImpl = fetch) {
       // PUBLIC_INTERFACE
       async getCRMe() {
         await delay(120);
-        const addr = mockSession.address;
-        if (!addr) {
-          return { linked: false, crTag: null, name: null, trophies: null };
-        }
+        const addr = mockSession.address || "0xMockAddress";
         const state = mockCRByAddress.get(addr);
         if (!state || !state.linked) {
           return { linked: false, crTag: null, name: null, trophies: null };
@@ -146,7 +140,6 @@ function api(fetchImpl = fetch) {
           err.code = "INVALID_TAG";
           throw err;
         }
-        // token is optional; in mock we ignore it
         mockCRByAddress.set(addr, {
           linked: true,
           crTag: normalized,
@@ -186,7 +179,6 @@ function api(fetchImpl = fetch) {
       async getCRFavoriteCards({ tag }) {
         await delay(100);
         const normalized = normalizeCRTag(tag) || "#MOCK123";
-        // derive deterministic names from tag
         const base = normalized.slice(-4);
         return Array.from({ length: 8 }).map((_, i) => ({
           id: `${base}-${i}`,
@@ -211,7 +203,6 @@ function api(fetchImpl = fetch) {
       // PUBLIC_INTERFACE
       async notifyDeposit({ wagerId, txHash }) {
         await delay(150);
-        // mark wager as deposited/pending
         mockWagers = mockWagers.map((w) =>
           w.id === wagerId ? { ...w, status: "deposit_pending", txHash } : w
         );
@@ -223,7 +214,6 @@ function api(fetchImpl = fetch) {
         await delay(120);
         const w = mockWagers.find((x) => x.id === wagerId);
         if (!w) return { status: "unknown" };
-        // cycle deterministically
         const states = ["open", "deposit_pending", "ready", "in_game", "settled"];
         const idx = Math.floor((Date.now() / 5000) % states.length);
         return { status: w.status === "settled" ? "settled" : states[idx], wager: w };
@@ -246,14 +236,13 @@ function api(fetchImpl = fetch) {
         // PUBLIC_INTERFACE
         async nonce() {
           await delay(80);
-          const nonce = Math.floor(rng() * 1e6).toString();
+          const nonce = Math.floor(Math.random() * 1e6).toString();
           mockSession.nonce = nonce;
           return { nonce };
         },
         // PUBLIC_INTERFACE
         async verify({ message, signature, address }) {
           await delay(80);
-          // in mock mode, accept anything and set session
           mockSession.address = address || "0xMockAddress";
           mockSession.siwe = { message, signature, address: mockSession.address };
           return { ok: true, address: mockSession.address };
@@ -262,7 +251,7 @@ function api(fetchImpl = fetch) {
     };
   }
 
-  // Real client scaffold: still simple fetch wrappers; backend contract expected.
+  // Real client scaffolding
   const base = API_URL.replace(/\/*$/, "");
 
   async function req(path, opts) {
@@ -289,12 +278,10 @@ function api(fetchImpl = fetch) {
     },
     // PUBLIC_INTERFACE
     getCRMe() {
-      // Depending on backend, this might be /cr/me; we normalize here
       return req("/me/cr", { method: "GET" });
     },
     // PUBLIC_INTERFACE
     crLink(body) {
-      // Accept { tag, token } or { crTag }
       return req("/me/cr/link", { method: "POST", body: JSON.stringify(body) });
     },
     // PUBLIC_INTERFACE
@@ -344,32 +331,24 @@ function api(fetchImpl = fetch) {
   };
 }
 
-// Top-level exports (keep at end to avoid non-top-level export issues)
+// Top-level exports
 export { api };
 
-// Convenience named helpers to match existing imports in components/tests
+// Convenience named helpers for components/tests
 export const apiGetCRMe = (fetchImpl) => api(fetchImpl).getCRMe();
 export const apiGetProfiles = (fetchImpl) => api(fetchImpl).getProfiles();
 export const apiInitWager = (body, fetchImpl) => api(fetchImpl).initWager(body);
 export const apiNotifyDeposit = (body, fetchImpl) => api(fetchImpl).notifyDeposit(body);
 export const apiGetWagerStatus = (args, fetchImpl) => api(fetchImpl).getWagerStatus(args);
 export const apiGetLive = (fetchImpl) => api(fetchImpl).getLive();
-// Alias used by some components/tests
 export const apiGetLiveWagers = (fetchImpl) => api(fetchImpl).getLive();
 export const apiGetHistory = (fetchImpl) => api(fetchImpl).getHistory();
-// Backward-compatible alias expected by GameHistoryPage and possibly tests
 export const apiGetGameHistory = (fetchImpl) => api(fetchImpl).getHistory();
-// Clash Royale helpers for dashboard
 export const apiGetCRPlayer = (args, fetchImpl) => api(fetchImpl).getCRPlayer(args);
 export const apiGetCRFavoriteCards = (args, fetchImpl) => api(fetchImpl).getCRFavoriteCards(args);
-// CR link lifecycle named exports
 export const apiCRLink = (args, fetchImpl) => api(fetchImpl).crLink(args);
 export const apiCRUnlink = (fetchImpl) => api(fetchImpl).crUnlink();
 
-//
-// PUBLIC_INTERFACE
-// Default export shim for compatibility: returns the api client instance created with default fetch.
-// If called with no args, it uses global fetch. When a fetchImpl is passed, it will be used instead.
-//
+// Default export shim
 const apiClient = (fetchImpl) => api(fetchImpl);
 export default apiClient;

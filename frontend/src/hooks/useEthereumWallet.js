@@ -2,8 +2,8 @@
 // hooks/useEthereumWallet.js
 //
 // PUBLIC_INTERFACE
-// React hook to manage wallet connection with mock fallback and SIWE-like flow.
-// In mock mode (no API URL), simulates signature to allow preview flows.
+// React hook to manage wallet connection with mock fallback.
+// Validates chain against REACT_APP_CHAIN_ID (default to 11155111 for preview).
 //
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,7 +26,6 @@ export function useEthereumWallet() {
   }, [chainId]);
 
   useEffect(() => {
-    // Guard against SSR/test environments without window
     if (typeof window !== "undefined" && window?.ethereum?.chainId) {
       setChainId(parseInt(window.ethereum.chainId, 16));
     }
@@ -57,7 +56,6 @@ export function useEthereumWallet() {
         const chainHex = await window.ethereum.request({ method: "eth_chainId" });
         setChainId(parseInt(chainHex, 16));
       } else {
-        // no wallet installed; simulate in mock preview
         if (!HAS_API) {
           acc = "0xMockPreview00000000000000000000000000000001";
           setAccount(acc);
@@ -67,7 +65,7 @@ export function useEthereumWallet() {
         }
       }
 
-      // SIWE-like mock: request nonce and verify
+      // Optional mock SIWE flow
       const client = api();
       const { nonce } = await client.auth.nonce();
       let signature = "0xmocksignature";
@@ -80,7 +78,6 @@ export function useEthereumWallet() {
             params: [message, acc],
           });
         } catch {
-          // fall back to mock signature
           signature = "0xmocksignature";
         }
       }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
 /**
+ * PUBLIC_INTERFACE
  * Banner
  * Informational, success, warning, or error banner with Ocean Professional styling.
  *
@@ -11,7 +12,6 @@ import React, { useState } from 'react';
  * - onClose?: function - when provided, renders a dismiss button and calls onClose when clicked
  * - className?: string - optional className
  */
-// PUBLIC_INTERFACE
 export default function Banner({
   type = 'info',
   variant,
@@ -23,7 +23,6 @@ export default function Banner({
   inline, // allows <Banner inline> usage without warnings
   ...rest
 }) {
-  /** This is a public function. */
   const tone = variant || type;
 
   // Ocean Professional aligned palette
@@ -36,7 +35,6 @@ export default function Banner({
       aria: 'status',
     },
     success: {
-      // success uses the secondary amber per style guide
       bg: '#FFFBEB',
       border: '#F59E0B',
       text: '#7C2D12',
@@ -106,7 +104,7 @@ export default function Banner({
             padding: '2px 6px',
           }}
         >
-          ✕
+          ×
         </button>
       )}
     </div>

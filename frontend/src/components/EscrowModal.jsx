@@ -6,13 +6,15 @@ import Spinner from "./ui/Spinner";
 /**
  * PUBLIC_INTERFACE
  * EscrowModal displays a deposit flow for a given wager.
+ * Props:
+ * - open: boolean
+ * - onClose: function
+ * - wager: { id, amountEth, opponent? }
  */
 export default function EscrowModal({ open, onClose, wager }) {
-  // Hooks must be unconditional
   const [step, setStep] = useState("idle");
   const [txHash, setTxHash] = useState(null);
   const [error, setError] = useState(null);
-  // Always create client; it internally decides dry-run vs real based on env.
   const client = getEscrowClient();
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export default function EscrowModal({ open, onClose, wager }) {
     setStep("submitting");
     try {
       const res = await client.deposit({
-        from: "0xUser", // In a real flow, the wallet account
+        from: "0xUser",
         wagerId: wager.id,
         amountEth: wager.amountEth || 0.01,
       });
@@ -54,12 +56,12 @@ export default function EscrowModal({ open, onClose, wager }) {
   if (!open) return null;
 
   return (
-    <div className="modal-backdrop">
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="escrow-title">
       <div className="modal">
         <header className="modal-header">
-          <h3>Escrow Deposit</h3>
+          <h3 id="escrow-title">Escrow Deposit</h3>
           <button aria-label="Close" onClick={onClose}>
-            ✕
+            ×
           </button>
         </header>
         <div className="modal-body">
@@ -67,7 +69,7 @@ export default function EscrowModal({ open, onClose, wager }) {
             You are depositing {wager.amountEth ?? 0.01} ETH into escrow for wager {wager.id}.
           </p>
           {client.dryRun && (
-            <p className="text-amber">
+            <p className="muted">
               Dry-run active — this simulates a deposit. No real funds are used.
             </p>
           )}
@@ -87,9 +89,9 @@ export default function EscrowModal({ open, onClose, wager }) {
             </div>
           )}
           {step === "confirmed" && (
-            <div className="success">Deposit confirmed! tx: {txHash}</div>
+            <div className="badge success">Deposit confirmed! tx: {txHash}</div>
           )}
-          {step === "failed" && <div className="error">Failed: {error}</div>}
+          {step === "failed" && <div className="badge error">Failed: {error}</div>}
         </div>
         <footer className="modal-footer">
           <button className="btn" onClick={onClose}>
