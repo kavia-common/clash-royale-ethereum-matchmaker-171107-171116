@@ -15,7 +15,14 @@ const StoreContext = createContext(null);
 
 // PUBLIC_INTERFACE
 export function StoreProvider({ children, initialState }) {
-  const [state, dispatch] = useReducer(rootReducer, initialState);
+  // Ensure we have a proper initial state even when no initialState prop is provided.
+  // useReducer does not call the reducer for default param when initialArg is undefined,
+  // so we compute the baseline state via a lazy initializer.
+  const init = (initArg) => {
+    return initArg !== undefined ? initArg : rootReducer(undefined, { type: "@@INIT" });
+  };
+  const [state, dispatch] = useReducer(rootReducer, initialState, init);
+
   const value = useMemo(() => ({ state, dispatch }), [state, dispatch]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
