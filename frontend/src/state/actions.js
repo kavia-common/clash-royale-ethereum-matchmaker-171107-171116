@@ -1,25 +1,6 @@
-////
+//
 // Action creators for global store
-////
-
-// Centralized action type constants for reducers that import { types }
-export const types = {
-  SET_PROFILES: 'PROFILES_SET',
-  SET_WAGERS: 'WAGERS_LIVE_SET',
-  ADD_WAGER: 'WAGER_ADD', // reserved for potential future use
-  SET_HISTORY: 'WAGERS_HISTORY_SET',
-  SET_LOADING: 'SLICE_LOADING_SET',
-  SET_ERROR: 'SLICE_ERROR_SET',
-  AUTH_WALLET_UPDATED: 'AUTH_WALLET_UPDATED',
-  ESCROW_CONFIG_SET: 'ESCROW_CONFIG_SET',
-  ESCROW_STATUS_UPDATE: 'ESCROW_STATUS_UPDATE',
-  ESCROW_DEPOSIT_PENDING: 'ESCROW_DEPOSIT_PENDING',
-  ESCROW_DEPOSIT_CONFIRMED: 'ESCROW_DEPOSIT_CONFIRMED',
-  ESCROW_DEPOSIT_FAILED: 'ESCROW_DEPOSIT_FAILED',
-  CR_ACCOUNT_SET: 'CR_ACCOUNT_SET',
-  FILTER_WAGER_SET: 'FILTER_WAGER_SET',
-  WALLET_VERIFIED: 'WALLET_VERIFIED',
-};
+//
 
 /**
  * PUBLIC_INTERFACE
@@ -110,76 +91,4 @@ export const updateEscrowStatus = (payload) => ({
   /** This is a public function. */
   type: 'ESCROW_STATUS_UPDATE',
   payload,
-});
-
-/**
- * PUBLIC_INTERFACE
- * escrowDepositPending
- * Dispatch when a deposit transaction is submitted and waiting for confirmations.
- * @param {{wagerId: string|number, amountEth: number}} payload
- */
-export const escrowDepositPending = (payload) => ({
-  /** This is a public function. */
-  type: 'ESCROW_DEPOSIT_PENDING',
-  payload,
-});
-
-/**
- * PUBLIC_INTERFACE
- * escrowDepositConfirmed
- * Dispatch when a deposit is confirmed.
- * @param {{wagerId: string|number, txHash: string}} payload
- */
-export const escrowDepositConfirmed = (payload) => ({
-  /** This is a public function. */
-  type: 'ESCROW_DEPOSIT_CONFIRMED',
-  payload,
-});
-
-/**
- * PUBLIC_INTERFACE
- * escrowDepositFailed
- * Dispatch when a deposit fails.
- * @param {{wagerId: string|number, error: string}} payload
- */
-export const escrowDepositFailed = (payload) => ({
-  /** This is a public function. */
-  type: 'ESCROW_DEPOSIT_FAILED',
-  payload,
-});
-
-/**
- * PUBLIC_INTERFACE
- * setCrAccountData
- * Set the linked Clash Royale account/profile data returned by /cr/me
- * @param {any} data
- */
-export const setCrAccountData = (data) => ({
-  /** This is a public function. */
-  type: 'CR_ACCOUNT_SET',
-  payload: data,
-});
-
-/**
- * PUBLIC_INTERFACE
- * setWagerFilter
- * Update global wager filter range
- * @param {{min: number, max: number}} payload
- */
-export const setWagerFilter = (payload) => ({
-  /** This is a public function. */
-  type: 'FILTER_WAGER_SET',
-  payload,
-});
-
-/**
- * PUBLIC_INTERFACE
- * walletVerified
- * Mark wallet as verified in authSession slice.
- * @param {string} address
- */
-export const walletVerified = (address) => ({
-  /** This is a public function. */
-  type: 'WALLET_VERIFIED',
-  payload: { address },
 });

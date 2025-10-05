@@ -1,111 +1,256 @@
-//
-// hooks/useEthereumWallet.js
-//
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ethers } from 'ethers';
+
+/**
+ * Ocean Professional theme tokens (local use)
+ */
+const theme = {
+  primary: '#2563EB',
+  secondary: '#F59E0B',
+  error: '#EF4444',
+  background: '#f9fafb',
+  surface: '#ffffff',
+  text: '#111827',
+};
+
 // PUBLIC_INTERFACE
-// React hook to manage wallet connection with mock fallback.
-// Validates chain against REACT_APP_CHAIN_ID (default to 11155111 for preview).
-//
-
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../services/api";
-
-const TARGET_CHAIN_ID = Number(process.env.REACT_APP_CHAIN_ID || 11155111);
-const HAS_API = !!process.env.REACT_APP_API_URL;
+export function truncateAddress(addr) {
+  /** Truncate an Ethereum address for display, e.g., 0x1234...abcd */
+  if (!addr || typeof addr !== 'string') return '';
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
 
 // PUBLIC_INTERFACE
 export function useEthereumWallet() {
-  const [account, setAccount] = useState(null);
-  const [chainId, setChainId] = useState(null);
+  /**
+   * React hook managing Ethereum wallet connection using ethers.js.
+   * Provides connect, disconnect, status, address, and signer/provider.
+   *
+   * Stability and UX:
+   * - Never clear or overwrite address/chainId from init while user is connecting.
+   * - Set address and chainId atomically on connect resolution (one state flush per flow).
+   * - Initialize provider/signer once.
+   */
+  const [address, setAddress] = useState('');
+  const [chainId, setChainId] = useState('');
   const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState(null);
-  const [siweSession, setSiweSession] = useState(null);
+  const [error, setError] = useState('');
+  const [networkName, setNetworkName] = useState('');
+  const providerRef = useRef(null);
+  const signerRef = useRef(null);
+  const initRan = useRef(false);
 
-  const isCorrectNetwork = useMemo(() => {
-    if (!chainId) return false;
-    return Number(chainId) === TARGET_CHAIN_ID;
-  }, [chainId]);
+  // Guard flags
+  const isManuallyConnecting = useRef(false); // true during connect() flow
+  const initInFlight = useRef(false); // true while init Promise.all is running
 
-  useEffect(() => {
-    if (typeof window !== "undefined" && window?.ethereum?.chainId) {
-      setChainId(parseInt(window.ethereum.chainId, 16));
-    }
-    const onChainChanged = (hex) => setChainId(parseInt(hex, 16));
-    const onAccountsChanged = (accs) => setAccount(accs?.[0] || null);
+  const isConnected = !!address;
 
-    if (typeof window !== "undefined" && window?.ethereum?.on) {
-      window.ethereum.on("chainChanged", onChainChanged);
-      window.ethereum.on("accountsChanged", onAccountsChanged);
-    }
-    return () => {
-      if (typeof window !== "undefined" && window?.ethereum?.removeListener) {
-        window.ethereum.removeListener("chainChanged", onChainChanged);
-        window.ethereum.removeListener("accountsChanged", onAccountsChanged);
-      }
-    };
+  const detectProvider = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+    const { ethereum } = window;
+    return ethereum || null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const connect = useCallback(async () => {
-    setConnecting(true);
-    setError(null);
+  const ensureProvider = useCallback(() => {
+    const eth = detectProvider();
+    if (!eth) return null;
+    if (!providerRef.current) {
+      const web3Provider = new ethers.providers.Web3Provider(eth, 'any');
+      providerRef.current = web3Provider;
+      signerRef.current = web3Provider.getSigner();
+      // Prime network name (best-effort)
+      web3Provider
+        .getNetwork()
+        .then((net) => setNetworkName(net?.name || ''))
+        .catch(() => setNetworkName(''));
+    }
+    return providerRef.current;
+  }, [detectProvider]);
+
+  const guardedSetAddress = useCallback((next) => {
+    // Block any init-originated set while manual connect is active
+    if (isManuallyConnecting.current) return;
+    setAddress(next);
+  }, []);
+
+  const guardedSetChainId = useCallback((next) => {
+    if (isManuallyConnecting.current) return;
+    setChainId(next);
+  }, []);
+
+  const readAccounts = useCallback(async () => {
     try {
-      let acc = null;
-      if (window?.ethereum?.request) {
-        const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
-        acc = accs?.[0] || null;
-        setAccount(acc);
-        const chainHex = await window.ethereum.request({ method: "eth_chainId" });
-        setChainId(parseInt(chainHex, 16));
+      const eth = detectProvider();
+      if (!eth) return;
+      const accounts = await eth.request({ method: 'eth_accounts' });
+      if (accounts && accounts.length > 0) {
+        guardedSetAddress(ethers.utils.getAddress(accounts[0]));
       } else {
-        if (!HAS_API) {
-          acc = "0xMockPreview00000000000000000000000000000001";
-          setAccount(acc);
-          setChainId(TARGET_CHAIN_ID);
-        } else {
-          throw new Error("No Ethereum provider found.");
-        }
+        // Do not clear address here; explicit disconnect or accountsChanged -> [] will clear it.
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to read accounts', e);
+    }
+  }, [detectProvider, guardedSetAddress]);
+
+  const readChain = useCallback(async () => {
+    try {
+      const eth = detectProvider();
+      if (!eth) return;
+      const id = await eth.request({ method: 'eth_chainId' });
+      guardedSetChainId(id);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('Failed to read chainId', e);
+    }
+  }, [detectProvider, guardedSetChainId]);
+
+  // PUBLIC_INTERFACE
+  const connect = useCallback(async () => {
+    /** Prompt user to connect wallet via provider; set address+chainId synchronously once per flow. */
+    setError('');
+    setConnecting(true);
+    isManuallyConnecting.current = true;
+    try {
+      const eth = detectProvider();
+      if (!eth) {
+        setError('No Ethereum wallet detected. Please install MetaMask.');
+        return;
+      }
+      ensureProvider();
+
+      // Resolve both concurrently and then set both states in one tick
+      const [accounts, id] = await Promise.all([
+        eth.request({ method: 'eth_requestAccounts' }),
+        eth.request({ method: 'eth_chainId' }),
+      ]);
+
+      // Atomically set in the connect flow; this overrides any stale init reads.
+      let nextAddr = '';
+      if (accounts && accounts.length > 0) {
+        nextAddr = ethers.utils.getAddress(accounts[0]);
       }
 
-      // Optional mock SIWE flow
-      const client = api();
-      const { nonce } = await client.auth.nonce();
-      let signature = "0xmocksignature";
-      let message = `Sign in with Ethereum\nNonce: ${nonce}`;
-      if (window?.ethereum?.request && acc) {
-        try {
-          message = `Clash Royale ETH Matchmaker wants you to sign in.\nNonce: ${nonce}`;
-          signature = await window.ethereum.request({
-            method: "personal_sign",
-            params: [message, acc],
-          });
-        } catch {
-          signature = "0xmocksignature";
-        }
-      }
-      await client.auth.verify({ message, signature, address: acc });
-      setSiweSession({ address: acc, message, signature });
+      // Use functional updates to batch into the same render
+      setAddress(nextAddr);
+      setChainId(id || '');
+
     } catch (e) {
-      setError(e);
+      if (e?.code === 4001) {
+        setError('Connection request rejected.');
+      } else {
+        setError(e?.message || 'Failed to connect wallet.');
+      }
     } finally {
       setConnecting(false);
+      isManuallyConnecting.current = false;
     }
+  }, [detectProvider, ensureProvider]);
+
+  // PUBLIC_INTERFACE
+  const disconnect = useCallback(() => {
+    /** Soft disconnect (clear local state). Most wallets don't support programmatic disconnect. */
+    setAddress('');
+    setChainId('');
+    setError('');
+    providerRef.current = null;
+    signerRef.current = null;
   }, []);
 
-  const disconnect = useCallback(() => {
-    setAccount(null);
-    setChainId(null);
-    setSiweSession(null);
-    setError(null);
-  }, []);
+  useEffect(() => {
+    const eth = detectProvider();
+    if (!eth) return;
+
+    const handleAccountsChanged = (accounts) => {
+      // These are external provider events; allow them regardless of init flag.
+      if (accounts && accounts.length > 0) {
+        setAddress(ethers.utils.getAddress(accounts[0]));
+        // refresh signer reference (defensive)
+        if (providerRef.current) {
+          signerRef.current = providerRef.current.getSigner();
+        }
+      } else {
+        setAddress(''); // explicit disconnect
+        setNetworkName('');
+        signerRef.current = null;
+      }
+    };
+    const handleChainChanged = (id) => {
+      setChainId(id);
+      // Refresh network name from provider if possible
+      const p = providerRef.current;
+      if (p?.getNetwork) {
+        p.getNetwork()
+          .then((net) => setNetworkName(net?.name || ''))
+          .catch(() => setNetworkName(''));
+      } else {
+        setNetworkName('');
+      }
+    };
+
+    eth.on?.('accountsChanged', handleAccountsChanged);
+    eth.on?.('chainChanged', handleChainChanged);
+
+    if (!initRan.current) {
+      initRan.current = true;
+      ensureProvider();
+
+      // Mark init in flight so we can block any of its updates while connect is active
+      initInFlight.current = true;
+      Promise.resolve().then(async () => {
+        try {
+          const [accounts, id] = await Promise.all([
+            eth.request?.({ method: 'eth_accounts' }),
+            eth.request?.({ method: 'eth_chainId' }),
+          ]);
+
+          // Only apply init results if not currently in manual connect
+          if (!isManuallyConnecting.current) {
+            if (accounts && accounts.length > 0) {
+              guardedSetAddress(ethers.utils.getAddress(accounts[0]));
+            }
+            if (id) guardedSetChainId(id);
+            const p = providerRef.current;
+            if (p?.getNetwork) {
+              try {
+                const net = await p.getNetwork();
+                setNetworkName(net?.name || '');
+              } catch {
+                setNetworkName('');
+              }
+            }
+          }
+        } catch {
+          // silent
+        } finally {
+          initInFlight.current = false;
+        }
+      });
+    }
+
+    return () => {
+      eth.removeListener?.('accountsChanged', handleAccountsChanged);
+      eth.removeListener?.('chainChanged', handleChainChanged);
+    };
+  }, [detectProvider, ensureProvider, guardedSetAddress, guardedSetChainId]);
+
+  const provider = providerRef.current || null;
+  const signer = signerRef.current || null;
 
   return {
-    account,
+    address,
     chainId,
-    isCorrectNetwork,
+    isConnected,
     connecting,
     error,
-    siweSession,
     connect,
     disconnect,
-    HAS_API,
+    provider,
+    signer,
+    theme,
+    networkName,
   };
 }

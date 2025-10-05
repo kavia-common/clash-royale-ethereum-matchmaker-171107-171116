@@ -1,19 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Spinner, Banner } from './ui';
 
 /**
- * Ocean Professional theme tokens for Game History Dashboard mapped to CSS variables.
+ * Ocean Professional theme tokens for Game History Dashboard.
  */
 const theme = {
-  primary: 'var(--color-primary)',
-  secondary: 'var(--color-secondary)',
-  success: 'var(--color-success)',
-  error: 'var(--color-error)',
-  background: 'var(--bg)',
-  surface: 'var(--surface)',
-  text: 'var(--text)',
-  muted: 'var(--muted, #6B7280)',
-  border: 'var(--border, #E5E7EB)',
+  primary: '#2563EB',
+  secondary: '#F59E0B',
+  success: '#10B981',
+  error: '#EF4444',
+  background: '#f9fafb',
+  surface: '#ffffff',
+  text: '#111827',
+  muted: '#6B7280',
+  border: '#E5E7EB',
 };
 
 /**
@@ -168,7 +167,7 @@ export default function GameHistoryDashboard({ open, onClose, fetcher }) {
           Review your past games, win/loss record, and profit over time. Data will reflect live stats once integrated with the backend.
         </p>
 
-        {error && <Banner type="error">{error}</Banner>}
+        {error && <div role="alert" style={styles.errorBanner}>{error}</div>}
 
         {/* KPIs */}
         <div style={styles.kpiGrid}>
@@ -197,7 +196,7 @@ export default function GameHistoryDashboard({ open, onClose, fetcher }) {
 
           {loading ? (
             <div style={styles.loadingRow}>
-              <Spinner srText="Loading game history" />
+              <Spinner />
               <span style={styles.loadingText}>Loading game history…</span>
             </div>
           ) : games.length === 0 ? (
@@ -261,7 +260,9 @@ function KPI({ label, value, tone = 'info' }) {
   );
 }
 
-
+function Spinner() {
+  return <div aria-label="Loading" role="status" style={styles.spinner} />;
+}
 
 function ResultPill({ result }) {
   const map = {
@@ -463,7 +464,19 @@ const styles = {
     borderRadius: 10,
     padding: 10,
   },
-
+  spinner: {
+    width: 18,
+    height: 18,
+    borderRadius: '50%',
+    border: '3px solid #BFDBFE',
+    borderTopColor: theme.primary,
+    animation: 'spin 1s linear infinite',
+  },
 };
 
-
+// Inject simple keyframes for spinner (scoped to component load)
+const styleEl = document.createElement('style');
+styleEl.innerHTML = `
+@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+`;
+document.head.appendChild(styleEl);

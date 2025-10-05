@@ -1,47 +1,53 @@
 //
+// Selectors for global store
 //
-// state/selectors.js
-//
-// PUBLIC_INTERFACE
-// Selector helpers for accessing app state.
-//
-
-// PUBLIC_INTERFACE
-export const selectProfiles = (state) => state.profiles || [];
-
-// PUBLIC_INTERFACE
-export const selectWagers = (state) => state.wagers || [];
-
-// PUBLIC_INTERFACE
-export const selectHistory = (state) => state.history || [];
-
-// PUBLIC_INTERFACE
-export const selectLoading = (state) => state.ui?.loading || false;
 
 /**
  * PUBLIC_INTERFACE
- * Optional selector used by some components/tests to read the authenticated wallet address.
- * If auth slice is absent, it falls back to the wallet info on ui or returns null.
+ * selectAuthWallet
+ * @param {any} state
  */
-export const selectError = (state) => state.ui?.error || null;
+export const selectAuthWallet = (state) => state?.authSession?.wallet || {};
 
-// PUBLIC_INTERFACE
-export const selectAuthWallet = (state) =>
-  state.auth?.address || state.wallet?.address || state.ui?.account || null;
+/**
+ * PUBLIC_INTERFACE
+ * selectIsWalletConnected
+ * @param {any} state
+ */
+export const selectIsWalletConnected = (state) => !!(state?.authSession?.wallet?.isConnected);
 
-// Clash Royale account selectors
+/**
+ * PUBLIC_INTERFACE
+ * selectProfiles
+ * @param {any} state
+ */
+export const selectProfiles = (state) => state?.profiles?.items || [];
 
-// PUBLIC_INTERFACE
-export const selectCrAccount = (state) => state.crAccount || { linked: false, profile: null };
+/**
+ * PUBLIC_INTERFACE
+ * selectWagersLive
+ * @param {any} state
+ */
+export const selectWagersLive = (state) => state?.wagers?.live || [];
 
-// PUBLIC_INTERFACE
-export const selectCrAccountLoading = (state) => state.crAccount?.loading || false;
+/**
+ * PUBLIC_INTERFACE
+ * selectWagersHistory
+ * @param {any} state
+ */
+export const selectWagersHistory = (state) => state?.wagers?.history || [];
 
-// PUBLIC_INTERFACE
-export const selectCrAccountError = (state) => state.crAccount?.error || null;
+/**
+ * PUBLIC_INTERFACE
+ * selectEscrowConfig
+ * @param {any} state
+ */
+export const selectEscrowConfig = (state) => state?.escrow?.config || null;
 
-// PUBLIC_INTERFACE
-export const selectCRLinked = (state) => !!state.crAccount?.linked;
-
-// PUBLIC_INTERFACE
-export const selectCRProfile = (state) => state.crAccount?.profile || null;
+// Placeholder exports to flesh out later steps
+/**
+ * PUBLIC_INTERFACE
+ * selectCrAccount
+ * @param {any} state
+ */
+export const selectCrAccount = (state) => state?.crAccount?.data || null;

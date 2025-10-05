@@ -1,133 +1,94 @@
-# Clash Royale Ethereum Matchmaker - Frontend
+# Lightweight React Template for KAVIA
 
-Interactive React frontend with mock API and dry‑run escrow for preview on port 3000.
-
-## Quick start (Preview mode)
-
-Preview mode requires no backend or smart contract.
-
-1) Install dependencies:
-   - npm install
-2) Start the dev server:
-   - npm start
-3) Open:
-   - http://localhost:3000
-
-Default behavior (no .env needed):
-- Mock API is used because REACT_APP_API_URL is not set.
-- Escrow deposits are simulated (dry‑run) because REACT_APP_DRY_RUN_ESCROW=true (by default in example) or REACT_APP_ESCROW_ADDRESS is not set.
-
-Indicators:
-- The UI shows banners when mock API and/or dry‑run escrow are active.
-- No real funds are used in preview mode.
-
-## Switching to a real backend and contract
-
-1) Copy and edit environment variables:
-   - cp .env.example .env
-   - Set REACT_APP_API_URL to your backend base URL.
-   - Set REACT_APP_ESCROW_ADDRESS to your deployed escrow contract address.
-   - Set REACT_APP_DRY_RUN_ESCROW=false to enable real deposits.
-   - Set REACT_APP_CHAIN_ID to your target network (default in code is 11155111 for Sepolia).
-
-2) Restart the dev server after editing .env.
-
-3) Backend requirements:
-   - Must implement endpoints listed in INTEGRATION_NOTES.md.
-   - Enable CORS for your frontend origin and allow credentials (cookies).
-   - Serve over HTTPS in staging/production; set HttpOnly, Secure cookies.
-
-4) Contract requirements:
-   - Provide the escrow contract ABI and wire it into src/services/blockchain.js.
-   - Ensure MetaMask is connected to the chain matching REACT_APP_CHAIN_ID.
-
-## MetaMask and network checks
-
-- On connect, the app checks the wallet’s chain against REACT_APP_CHAIN_ID.
-- If networks don’t match, MetaMask may prompt to switch; otherwise, switch networks in MetaMask manually.
-- For preview without a wallet, the app falls back to a mock account when no API URL is set.
-
-## Environment variables
-
-All variables supported by the frontend:
-
-- REACT_APP_API_URL
-  - Backend base URL. If omitted, the app uses the Mock API client.
-- REACT_APP_DRY_RUN_ESCROW
-  - "true" to simulate escrow deposits and confirmations. Also enabled automatically if REACT_APP_ESCROW_ADDRESS is not set.
-- REACT_APP_ESCROW_ADDRESS
-  - Escrow contract address for real deposits. Leave empty for preview/dry‑run.
-- REACT_APP_CHAIN_ID
-  - Target chain ID (number). Default used in code is 11155111 (Sepolia).
-
-See .env.example for a template.
-
-## Additional documentation
-
-- INTEGRATION_NOTES.md: Backend endpoints, SIWE‑lite session flow, escrow assumptions, security/CORS, and deployment guidance.
-- src/services/api.js and src/services/blockchain.js: Implementation details for API and escrow client.
-- src/hooks/useEthereumWallet.js: Wallet connection and SIWE‑lite logic.
+This project provides a minimal React template with a clean, modern UI and minimal dependencies.
 
 ## Features
 
-- Wallet connect/disconnect with mock SIWE‑like flow.
-- Streamlined Clash Royale linking:
-  - Single Link Account modal with simple inputs (Tag or API Token).
-  - Real‑time validation, inline errors, and helper text.
-  - One‑click entry from Wallet/Status area: “Link Clash Royale” or “Manage”.
-  - Optimistic UI with loading states and clear success/error banners.
-  - Link status indicator and Unlink option.
-  - Mock mode persists link state in‑memory per wallet for preview.
-- Profiles list with wager filtering.
-- Escrow modal with dry‑run simulation.
-- Deposits dashboard and game history.
-- Ocean Professional theme and accessible UI primitives.
+- **Lightweight**: No heavy UI frameworks - uses only vanilla CSS and React
+- **Modern UI**: Clean, responsive design with KAVIA brand styling
+- **Fast**: Minimal dependencies for quick loading times
+- **Simple**: Easy to understand and modify
 
-### Clash Royale linking (mock behavior)
+## Getting Started
 
-- When REACT_APP_API_URL is not set, linking/unlinking is simulated and stored in memory for the current wallet address.
-- The “CR Status” in Wallet shows whether you are linked and your normalized tag (uppercase, leading #).
-- You can unlink from the Manage panel inside the Link Account modal.
+Environment
+- Copy .env.example to .env and set:
+  - REACT_APP_API_URL: your backend base URL (e.g., http://localhost:8000)
+  - REACT_APP_ESCROW_ADDRESS: escrow contract address on the active chain
 
-## Development
+Integration
+- API calls are centralized in src/services/api.js
+- Ethers escrow deposit helper is in src/services/blockchain.js
+- Profile list fetches data from backend; Escrow flow hits backend and contract
+- Clash Royale linking & stats (read-only): After linking via LinkAccountModal (tag or token), open the ClashRoyaleDashboard to view player profile and trophies. Stats are fetched by the backend from Supercell’s official API; no tokens are sent directly to Supercell from the browser.
 
-- Components and services are documented with PUBLIC_INTERFACE markers.
-- Tests pass in CI using mock mode; no external services are required.
 
-## Alignment with backend roadmap
+In the project directory, you can run:
 
-Refer to the workspace README’s Backend Roadmap for the concise execution plan covering:
-- SIWE‑lite auth, profiles, Clash Royale linking,
-- wagers lifecycle with escrow + indexer/webhooks,
-- security, docker‑compose dev setup, suggested stack,
-- endpoint list, env var mapping, and next steps.
+### `npm start`
 
-## Optional Express-based Mock API Server
+Runs the app in development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
-You can optionally run a standalone mock backend that supports multi-user state beyond the built-in frontend mock mode.
+### `npm test`
 
-- Start the server:
-  - npm run mock:api
-  - It listens on http://localhost:4000
+Launches the test runner in interactive watch mode.
 
-- Point the frontend at it:
-  - macOS/Linux: export REACT_APP_API_URL=http://localhost:4000 && npm start
-  - Windows (PowerShell): $env:REACT_APP_API_URL="http://localhost:4000"; npm start
+### `npm run build`
 
-- Implemented endpoints (see INTEGRATION_NOTES.md for shapes/mapping):
-  - POST /auth/nonce
-  - POST /auth/verify
-  - GET /profiles
-  - GET /cr/me
-  - POST /cr/link
-  - DELETE /cr/link
-  - POST /wagers/initiate
-  - POST /wagers/:id/deposit-notify
-  - POST /wagers/:id/confirm
-  - GET /wagers/live
-  - GET /wagers/history
-  - GET /wagers/:id/status
+Builds the app for production to the `build` folder.\
+It correctly bundles React in production mode and optimizes the build for the best performance.
 
-Notes:
-- This is opt-in and does not replace the in-frontend mock mode.
-- Data is in-memory; restart resets state.
+## Customization
+
+### Colors
+
+The main brand colors are defined as CSS variables in `src/App.css`:
+
+```css
+:root {
+  --kavia-orange: #E87A41;
+  --kavia-dark: #1A1A1A;
+  --text-color: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --border-color: rgba(255, 255, 255, 0.1);
+}
+```
+
+### Components
+
+This template uses pure HTML/CSS components instead of a UI framework. You can find component styles in `src/App.css`. 
+
+Common components include:
+- Buttons (`.btn`, `.btn-large`)
+- Container (`.container`)
+- Navigation (`.navbar`)
+- Typography (`.title`, `.subtitle`, `.description`)
+
+## Learn More
+
+To learn React, check out the [React documentation](https://reactjs.org/).
+
+### Code Splitting
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+
+### Analyzing the Bundle Size
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+
+### Making a Progressive Web App
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+
+### Advanced Configuration
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+
+### Deployment
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+
+### `npm run build` fails to minify
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
