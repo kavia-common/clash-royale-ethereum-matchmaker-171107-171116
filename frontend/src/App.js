@@ -14,6 +14,7 @@ import SettingsModal from './components/SettingsModal';
 import CharacterFeatureHero from './components/CharacterFeatureHero';
 import './components/CharacterFeatureHero.css';
 import { apiGetProfiles, apiLinkAccount, apiGetLiveWagers, apiGetGameHistory } from './services/api';
+import { Banner } from './components/ui';
 
 /**
  * PUBLIC_INTERFACE
@@ -71,6 +72,10 @@ function App() {
   const [profilesError, setProfilesError] = useState('');
   const [filter, setFilter] = useState({ min: 0.01, max: 5.0 });
 
+  const hasBackend = !!process.env.REACT_APP_API_URL;
+  const dryRun = !hasBackend || String(process.env.REACT_APP_DRY_RUN_ESCROW || '') === 'true';
+  const debounceRef = React.useRef(null);
+
   // Effect to apply theme to document element
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -78,11 +83,11 @@ function App() {
 
   useEffect(() => {
     let mounted = true;
-    const run = async () => {
+    const run = async (params = {}) => {
       setLoadingProfiles(true);
       setProfilesError('');
       try {
-        const res = await apiGetProfiles();
+        const res = await apiGetProfiles(params);
         if (!mounted) return;
         setProfiles(Array.isArray(res) ? res : (res?.items || []));
       } catch (e) {
@@ -91,11 +96,34 @@ function App() {
         if (mounted) setLoadingProfiles(false);
       }
     };
+
+    // Initial load
     run();
+
     return () => {
       mounted = false;
     };
   }, []);
+
+  // Debounced refetch when backend exists and filters change
+  useEffect(() => {
+    if (!hasBackend) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const params = {};
+      if (filter?.min != null) params.minWager = filter.min;
+      if (filter?.max != null && isFinite(filter.max)) params.maxWager = filter.max;
+      apiGetProfiles(params)
+        .then((res) => {
+          const data = Array.isArray(res) ? res : (res?.items || []);
+          setProfiles(data);
+        })
+        .catch((e) => setProfilesError(e?.message || 'Failed to load profiles.'));
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [hasBackend, filter]);
 
   // PUBLIC_INTERFACE
   const toggleTheme = () => {
@@ -123,6 +151,19 @@ function App() {
       {/* Render the main hero and list only on the home route */}
       {isHome && (
         <>
+          {dryRun && (
+            <div style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 16px' }}>
+              <Banner
+                variant="warning"
+                message={
+                  <>
+                    Running in mock/dry-run mode. Some blockchain and API flows are simulated.
+                  </>
+                }
+                action={{ label: 'README', href: 'https://github.com' }}
+              />
+            </div>
+          )}
           {/* Prominent top-level Make Wager button (pill/oval) */}
           <div
             style={{
@@ -234,6 +275,21 @@ function App() {
                   aria-label="Open tier selection"
                 >
                   View Tiers
+                </button>
+                <button
+                  onClick={() => setLinkOpen(true)}
+                  style={{
+                    background: '#ffffff',
+                    color: '#111827',
+                    border: '1px solid #E5E7EB',
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                  }}
+                  aria-label="Link Clash Royale Account"
+                >
+                  Link Clash Royale Account
                 </button>
                 <button
                   className="theme-toggle"

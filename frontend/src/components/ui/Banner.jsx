@@ -1,112 +1,103 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 /**
- * PUBLIC_INTERFACE
- * Banner
- * Informational, success, warning, or error banner with Ocean Professional styling.
+ * Banner component for displaying top-level alerts or information.
+ * Styled to align with Ocean Professional theme.
  *
  * Props:
- * - type: 'info' | 'success' | 'warning' | 'error' (alias: variant)
- * - children: node
- * - role: string (optional override)
- * - onClose?: function - when provided, renders a dismiss button and calls onClose when clicked
- * - className?: string - optional className
+ * - variant: 'info' | 'warning' | 'error' (affects color)
+ * - message: string or React node
+ * - action: optional { label: string, href?: string, onClick?: function }
+ * - className: optional extra classes
  */
-export default function Banner({
-  type = 'info',
-  variant,
-  children,
-  role,
-  style,
-  onClose,
-  className,
-  inline, // allows <Banner inline> usage without warnings
-  ...rest
-}) {
-  const tone = variant || type;
-
-  // Ocean Professional aligned palette
-  const palette = {
+export default function Banner({ variant = 'info', message, action, className = '' }) {
+  const variants = {
     info: {
-      bg: '#EFF6FF',
-      border: '#93C5FD',
-      text: '#1E3A8A',
-      icon: 'ℹ️',
-      aria: 'status',
-    },
-    success: {
-      bg: '#FFFBEB',
-      border: '#F59E0B',
-      text: '#7C2D12',
-      icon: '✅',
-      aria: 'status',
+      bg: '#e0ebff',
+      border: '#2563EB',
+      text: '#1e3a8a',
     },
     warning: {
-      bg: '#FEF3C7',
+      bg: '#fff7ed',
       border: '#F59E0B',
-      text: '#92400E',
-      icon: '⚠️',
-      aria: 'alert',
+      text: '#7c2d12',
     },
     error: {
-      bg: '#FEF2F2',
+      bg: '#fee2e2',
       border: '#EF4444',
-      text: '#991B1B',
-      icon: '⛔',
-      aria: 'alert',
+      text: '#7f1d1d',
     },
   };
 
-  const t = palette[tone] || palette.info;
-
-  const [hidden, setHidden] = useState(false);
-  if (hidden) return null;
-
-  const handleClose = () => {
-    setHidden(true);
-    if (onClose) onClose();
-  };
+  const v = variants[variant] || variants.info;
 
   return (
     <div
-      role={role || t.aria}
-      aria-live={t.aria === 'alert' ? 'assertive' : 'polite'}
-      className={className}
+      role="status"
+      aria-live="polite"
+      className={`ui-banner ${className}`}
       style={{
+        background: v.bg,
+        border: `1px solid ${v.border}`,
+        color: v.text,
+        padding: '10px 14px',
+        borderRadius: 8,
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
-        background: t.bg,
-        border: `1px solid ${t.border}`,
-        color: t.text,
-        padding: '10px 12px',
-        borderRadius: 10,
-        fontSize: 14,
-        lineHeight: 1.3,
-        ...style,
+        justifyContent: 'space-between',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
       }}
-      {...rest}
+      data-testid="ui-banner"
     >
-      <span aria-hidden="true">{t.icon}</span>
-      <div style={{ fontWeight: 600, flex: 1, minWidth: 0 }}>{children}</div>
-      {typeof onClose === 'function' && (
-        <button
-          type="button"
-          aria-label="Dismiss notification"
-          onClick={handleClose}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span
+          aria-hidden="true"
           style={{
-            marginLeft: 8,
-            background: 'transparent',
-            border: '1px solid transparent',
-            color: t.text,
-            cursor: 'pointer',
-            borderRadius: 8,
-            padding: '2px 6px',
+            width: 8,
+            height: 8,
+            background: v.border,
+            borderRadius: '50%',
+            display: 'inline-block',
           }}
-        >
-          ×
-        </button>
-      )}
+        />
+        <div style={{ fontSize: 14, lineHeight: 1.3 }}>{message}</div>
+      </div>
+      {action ? (
+        action.href ? (
+          <a
+            href={action.href}
+            target="_blank"
+            rel="noreferrer"
+            className="ui-banner-action"
+            style={{
+              color: '#2563EB',
+              textDecoration: 'underline',
+              fontWeight: 600,
+              fontSize: 13,
+              marginLeft: 12,
+            }}
+          >
+            {action.label}
+          </a>
+        ) : (
+          <button
+            onClick={action.onClick}
+            className="ui-banner-action-btn"
+            style={{
+              color: '#2563EB',
+              background: 'transparent',
+              border: 'none',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+              marginLeft: 12,
+            }}
+            aria-label={typeof action.label === 'string' ? action.label : 'Banner action'}
+          >
+            {action.label}
+          </button>
+        )
+      ) : null}
     </div>
   );
 }
