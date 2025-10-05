@@ -24,8 +24,8 @@ export default function WalletStatus() {
           No backend configured. Using mock data for preview.
         </Banner>
       )}
-      {process.env.REACT_APP_DRY_RUN_ESCROW === "true" ||
-      !process.env.REACT_APP_ESCROW_ADDRESS ? (
+      {(String(process.env.REACT_APP_DRY_RUN_ESCROW || "").toLowerCase() === "true" ||
+        !process.env.REACT_APP_ESCROW_ADDRESS) ? (
         <Banner tone="warning" title="Dry-run Escrow">
           Deposits will be simulated. No real funds are used.
         </Banner>

@@ -7,10 +7,19 @@
 // or REACT_APP_ESCROW_ADDRESS is missing, simulate deposits and transaction status.
 //
 
+/**
+ * Determine if we run escrow in dry-run.
+ * This is true if REACT_APP_DRY_RUN_ESCROW=true or no escrow address is configured.
+ * Avoid crashing previews when envs are missing.
+ */
 const DRY_RUN =
   String(process.env.REACT_APP_DRY_RUN_ESCROW || "").toLowerCase() === "true" ||
   !process.env.REACT_APP_ESCROW_ADDRESS;
 
+/**
+ * PUBLIC_INTERFACE
+ * Address of the escrow contract when not in dry-run. Null otherwise.
+ */
 const ESCROW_ADDRESS = process.env.REACT_APP_ESCROW_ADDRESS || null;
 
 // Simple event emitter

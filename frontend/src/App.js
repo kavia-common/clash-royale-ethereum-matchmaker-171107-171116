@@ -46,6 +46,11 @@ function useProfiles() {
   return { profiles: filtered, loading, applyFilter, reload: load };
 }
 
+/**
+ * PUBLIC_INTERFACE
+ * Main application shell: header + nav, wallet status, profile listing with filter,
+ * history and settings routes. Works with mock API when backend URL is not provided.
+ */
 export default function App() {
   const { profiles, loading, applyFilter } = useProfiles();
   const [route, setRoute] = useState(window.location.pathname);

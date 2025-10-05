@@ -12,6 +12,7 @@ export default function EscrowModal({ open, onClose, wager }) {
   const [step, setStep] = useState("idle");
   const [txHash, setTxHash] = useState(null);
   const [error, setError] = useState(null);
+  // Always create client; it internally decides dry-run vs real based on env.
   const client = getEscrowClient();
 
   useEffect(() => {

@@ -26,18 +26,19 @@ export function useEthereumWallet() {
   }, [chainId]);
 
   useEffect(() => {
-    if (window?.ethereum?.chainId) {
+    // Guard against SSR/test environments without window
+    if (typeof window !== "undefined" && window?.ethereum?.chainId) {
       setChainId(parseInt(window.ethereum.chainId, 16));
     }
     const onChainChanged = (hex) => setChainId(parseInt(hex, 16));
     const onAccountsChanged = (accs) => setAccount(accs?.[0] || null);
 
-    if (window?.ethereum?.on) {
+    if (typeof window !== "undefined" && window?.ethereum?.on) {
       window.ethereum.on("chainChanged", onChainChanged);
       window.ethereum.on("accountsChanged", onAccountsChanged);
     }
     return () => {
-      if (window?.ethereum?.removeListener) {
+      if (typeof window !== "undefined" && window?.ethereum?.removeListener) {
         window.ethereum.removeListener("chainChanged", onChainChanged);
         window.ethereum.removeListener("accountsChanged", onAccountsChanged);
       }

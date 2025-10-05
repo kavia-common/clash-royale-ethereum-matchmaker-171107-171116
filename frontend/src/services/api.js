@@ -273,6 +273,10 @@ export const apiGetGameHistory = (fetchImpl) => api(fetchImpl).getHistory();
 export const apiAuthNonce = (fetchImpl) => api(fetchImpl).auth.nonce();
 export const apiAuthVerify = (body, fetchImpl) => api(fetchImpl).auth.verify(body);
 
-// Default export shim for compatibility: returns the api client instance created with default fetch.
+/**
+ * PUBLIC_INTERFACE
+ * Default export shim for compatibility: returns the api client instance created with default fetch.
+ * If called with no args, it uses global fetch. When a fetchImpl is passed, it will be used instead.
+ */
 const apiClient = (fetchImpl) => api(fetchImpl);
 export default apiClient;
